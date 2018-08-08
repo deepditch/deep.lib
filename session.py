@@ -1,51 +1,121 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
-import lr_scheduler
+from LR_Schedule.lr_scheduler import *
 import callbacks
+from torch.autograd import Variable
+from tqdm import tqdm_notebook as tqdm, tnrange
+
+USE_GPU = torch.cuda.is_available()
+def to_gpu(x, *args, **kwargs):
+    '''puts pytorch variable to gpu, if cuda is available and USE_GPU is set to true. '''
+    return x.cuda(*args, **kwargs) if USE_GPU else x
+
+
+class TrainModel():
+    def __init__(self, model):
+        self.model = model
+        self.was_training = model.training
+
+    def __enter__(self):
+        self.model.train()
+
+    def __exit__(self, type, value, traceback):
+        self.model.train(mode=self.was_training)
+
+
+class EvalModel():
+    def __init__(self, model):
+        self.model = model
+        self.was_training = model.training
+
+    def __enter__(self):
+        self.model.eval()
+
+    def __exit__(self, type, value, traceback):
+        self.model.train(mode=self.was_training)
+
 
 class Session():
-    def __init__(model, criterion, optimizer, scheduler):
-        self.model = model
+    def __init__(self, model, criterion, optimizer, scheduler, callbacks=[]):
+        self.model = to_gpu(model)
         self.criterion = criterion
         self.optimizer = optimizer
         self.scheduler = scheduler
-        self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-        self.callbacks = []
+        
+        self.callbacks = callbacks
+        self.add_callback(self.scheduler)
 
     # Train on a single batch
     def step(self, input, label):
-        input = input.to(self.device)
-        label = label.to(self.device)
+        input = Variable(to_gpu(input))
+        label = Variable(to_gpu(label))
 
         self.optimizer.zero_grad()
 
-        with torch.set_grad_enabled(True):
-            outputs = self.model.forward(input)
-            loss = self.criterion(outputs, labels)
-            loss.backward()
-            self.optimizer.step()
+        for cb in self.callbacks: cb.on_batch_begin(self)
 
-        for cb in self.callbacks: cb.on_batch_end(self)
+        outputs = self.model(input)
+        loss = self.criterion(outputs, label)
+        loss.backward()
+        self.optimizer.step()
 
+        for cb in self.callbacks: cb.on_batch_end(self, loss.data.tolist()[0])
+
+        return loss.data.tolist()[0]
 
     # Train for one pass over the data
-    def epoch(self, dataLoader):
-        for cb in self.callbacks: cb.on_epoch_begin()
+    def epoch(self, data):
+        for cb in self.callbacks: cb.on_epoch_begin(self)
 
-        self.scheduler.step()
+        loss = 0
 
-        for input, label in dataLoader:
-            self.step(input, label) 
+        for input, label in tqdm(data, desc="Steps", leave=False):
+            loss += self.step(input, label) 
 
-        for cb in self.callbacks: cb.on_epoch_end()
+        for cb in self.callbacks: cb.on_epoch_end(self, loss/len(data))
 
+    def train(self, data, epochs):
+        with TrainModel(self.model):
+            for cb in self.callbacks: cb.on_train_begin(self)       
 
-    def train(self, dataLoader, epochs):
-        for cb in self.callbacks: cb.on_train_begin()
+            for epoch in tqdm(range(epochs), desc="Epochs"):
+                self.epoch(data)       
 
-        for epoch in range(epochs):
-            self.epoch(dataLoader)       
+            for cb in self.callbacks: cb.on_train_end(self)
 
-        for cb in self.callbacks: cb.on_train_end()
+    def add_callback(self, callback):
+        self.callbacks.append(callback)
     
+
+class TrainingSchedule():
+    def __init__(self, data, epochs, callbacks=[]):
+        self.data = data
+        self.epochs = epochs
+        self.iterations = len(self.data) * self.epochs
+        self.callbacks = callbacks
+
+
+    def add_callback(self, callback):
+        self.callbacks.append(callback)
+
+
+    def train(self, session):  
+        with TrainModel(session.model):
+            for cb in self.callbacks: cb.on_train_begin(session)
+
+            for epoch in tqdm(range(epochs), desc="Epochs"):
+
+                for cb in self.callbacks: cb.on_epoch_begin(self)
+
+                for input, label in tqdm(self.data, desc="Steps", leave=False): 
+                    for cb in self.callbacks: cb.on_batch_begin(self)
+                    session.step(input, label)
+                    for cb in self.callbacks: cb.on_batch_end(self)
+
+                for cb in self.callbacks: cb.on_epoch_end(self)
+
+            for cb in self.callbacks: cb.on_train_end(session)
+
+    
+
