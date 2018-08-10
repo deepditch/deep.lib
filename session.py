@@ -36,56 +36,68 @@ class EvalModel():
         self.model.train(mode=self.was_training)
 
 
+class LossMeter(object):
+    def __init__(self):
+        self.reset()
+
+    def reset(self):
+        self.loss = 0
+        self.raw_avg = 0
+        self.interpolated_avg = 0
+        self.debias = 0
+        self.sum = 0
+        self.count = 0
+        self.batches = 0
+
+    def update(self, loss, n=1):
+        self.loss = loss
+        self.sum += loss * n
+        self.count += n
+        self.batches += 1
+        self.raw_avg = self.sum / self.count
+
+        # When training on a large dataset, this average weights later batches higher than earlier batches
+        self.interpolated_avg = self.interpolated_avg * .98 + loss * (1-.98)
+        self.debias = self.interpolated_avg / (1 - .98**self.batches)
+
+
 class Session():
-    def __init__(self, model, criterion, optimizer, scheduler, callbacks=[]):
+    def __init__(self, model, criterion, optimizer):
         self.model = to_gpu(model)
         self.criterion = criterion
         self.optimizer = optimizer
-        self.scheduler = scheduler
-        
-        self.callbacks = callbacks
-        self.add_callback(self.scheduler)
-
-    # Train on a single batch
+        self.training = False
+    
     def step(self, input, label):
         input = Variable(to_gpu(input))
         label = Variable(to_gpu(label))
+        self.optimizer.zero_grad()              # Clear past gradent
+        outputs = self.model(input)             # Forward pass
+        loss = self.criterion(outputs, label)   # Calculate loss
+        loss.backward()                         # Calculate new gradient
+        self.optimizer.step()                   # Update model parameters
+        return loss.data.tolist()[0]            # Return loss value
 
-        self.optimizer.zero_grad()
-
-        for cb in self.callbacks: cb.on_batch_begin(self)
-
-        outputs = self.model(input)
-        loss = self.criterion(outputs, label)
-        loss.backward()
-        self.optimizer.step()
-
-        for cb in self.callbacks: cb.on_batch_end(self, loss.data.tolist()[0])
-
-        return loss.data.tolist()[0]
-
-    # Train for one pass over the data
-    def epoch(self, data):
-        for cb in self.callbacks: cb.on_epoch_begin(self)
-
-        loss = 0
-
-        for input, label in tqdm(data, desc="Steps", leave=False):
-            loss += self.step(input, label) 
-
-        for cb in self.callbacks: cb.on_epoch_end(self, loss/len(data))
-
-    def train(self, data, epochs):
+    def train(self, schedule):
+        self.training = True
+        lossMeter = LossMeter()
         with TrainModel(self.model):
-            for cb in self.callbacks: cb.on_train_begin(self)       
+            for cb in schedule.callbacks: cb.on_train_begin(self)       
+            for epoch in tqdm(range(schedule.epochs), desc="Epochs"):
+                if not self.training: break
+                for cb in schedule.callbacks: cb.on_epoch_begin(self)
+                running_loss = 0
+                for input, label in tqdm(schedule.data, desc="Steps", leave=False):
+                    if not self.training: break
+                    for cb in schedule.callbacks: cb.on_batch_begin(self)
+                    step_loss = self.step(input, label)         
+                    lossMeter.update(step_loss, label.shape[0])
+                    for cb in schedule.callbacks: cb.on_batch_end(self, lossMeter)
+                for cb in schedule.callbacks: cb.on_epoch_end(self, lossMeter)      
+            for cb in schedule.callbacks: cb.on_train_end(self)    
 
-            for epoch in tqdm(range(epochs), desc="Epochs"):
-                self.epoch(data)       
-
-            for cb in self.callbacks: cb.on_train_end(self)
-
-    def add_callback(self, callback):
-        self.callbacks.append(callback)
+    def stop_training(self):
+        self.training = False
     
 
 class TrainingSchedule():
@@ -95,27 +107,10 @@ class TrainingSchedule():
         self.iterations = len(self.data) * self.epochs
         self.callbacks = callbacks
 
-
     def add_callback(self, callback):
         self.callbacks.append(callback)
 
 
-    def train(self, session):  
-        with TrainModel(session.model):
-            for cb in self.callbacks: cb.on_train_begin(session)
-
-            for epoch in tqdm(range(epochs), desc="Epochs"):
-
-                for cb in self.callbacks: cb.on_epoch_begin(self)
-
-                for input, label in tqdm(self.data, desc="Steps", leave=False): 
-                    for cb in self.callbacks: cb.on_batch_begin(self)
-                    session.step(input, label)
-                    for cb in self.callbacks: cb.on_batch_end(self)
-
-                for cb in self.callbacks: cb.on_epoch_end(self)
-
-            for cb in self.callbacks: cb.on_train_end(session)
 
     
 
