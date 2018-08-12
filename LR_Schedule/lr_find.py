@@ -20,9 +20,6 @@ class LRFindScheduler(_OnBatchLRScheduler):
         self.multipliers = [(self.end_lr/base_lr)**(1/self.num_examples) for base_lr in self.base_lrs]
         self.lrs = []
         self.best=1e9
-
-    def on_train_end(self, session):
-        self.set_lr(self.base_lrs)
     
     def get_lr(self):
         new_lr = [base_lr * mult ** self.iteration for base_lr, mult in zip(self.base_lrs, self.multipliers)]
@@ -54,7 +51,9 @@ class LRFindScheduler(_OnBatchLRScheduler):
 
 
 def lr_find(session, data, start_lr=1e-5, end_lr=10):
+    session.save('temp')
     lr_scheduler = LRFindScheduler(len(data), start_lr, end_lr)
-    schedule = TrainingSchedule(data, 1, [lr_scheduler])
-    session.train(schedule)
+    schedule = TrainingSchedule(data, [lr_scheduler])
+    session.train(schedule, 1)
     lr_scheduler.plot()
+    session.load('temp')

@@ -5,6 +5,8 @@ from LR_Schedule.lr_scheduler import *
 import callbacks
 from torch.autograd import Variable
 from tqdm import tqdm_notebook as tqdm, tnrange
+import os
+import util
 
 USE_GPU = torch.cuda.is_available()
 def to_gpu(x, *args, **kwargs):
@@ -67,7 +69,42 @@ class Session():
         self.criterion = criterion
         self.optimizer = optimizer
         self.training = False
-    
+
+    def save(self, name):
+        if not name.endswith('.ckpt.tar'): name += '.ckpt.tar'
+        state = {
+            'model': self.model.state_dict(),
+            'optimizer' : self.optimizer.state_dict(),
+        }
+        torch.save(state, name)
+
+    def load(self, name):
+        if not name.endswith('.ckpt.tar'): name += '.ckpt.tar' 
+        checkpoint = torch.load(name)
+        self.model.load_state_dict(checkpoint['model'])
+        self.optimizer.load_state_dict(checkpoint['optimizer'])
+
+    def freeze_to(self, layer_index):
+        layers = list(self.model.children())
+        for l in layers: 
+            for param in l.parameters():
+                param.requires_grad = False
+
+        for l in layers[layer_index:]:
+            for param in l.parameters():
+                param.requires_grad = True
+                
+    def freeze(self):
+        self.freeze_to(-1)
+
+    def unfreeze(self):
+        self.freeze_to(0)
+
+    def set_lr(self, lrs):
+        lrs = util.listify(lrs, self.optimizer.param_groups)
+        for param_group, lr in zip(self.optimizer.param_groups, lrs):
+            param_group['lr'] = lr
+
     def step(self, input, label):
         input = Variable(to_gpu(input))
         label = Variable(to_gpu(label))
@@ -78,12 +115,12 @@ class Session():
         self.optimizer.step()                   # Update model parameters
         return loss.data.tolist()[0]            # Return loss value
 
-    def train(self, schedule):
+    def train(self, schedule, epochs):
         self.training = True
         lossMeter = LossMeter()
         with TrainModel(self.model):
             for cb in schedule.callbacks: cb.on_train_begin(self)       
-            for epoch in tqdm(range(schedule.epochs), desc="Epochs"):
+            for epoch in tqdm(range(epochs), desc="Epochs"):
                 if not self.training: break
                 for cb in schedule.callbacks: cb.on_epoch_begin(self)
                 running_loss = 0
@@ -101,10 +138,8 @@ class Session():
     
 
 class TrainingSchedule():
-    def __init__(self, data, epochs, callbacks=[]):
+    def __init__(self, data, callbacks=[]):
         self.data = data
-        self.epochs = epochs
-        self.iterations = len(self.data) * self.epochs
         self.callbacks = callbacks
 
     def add_callback(self, callback):
