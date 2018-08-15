@@ -69,7 +69,7 @@ class Session():
         self.criterion = criterion
         self.optimizer = optimizer
         self.metrics = {}
-        self.training = False
+        self.running = False
 
     def save(self, name):
         if not name.endswith('.ckpt.tar'): name += '.ckpt.tar'
@@ -116,26 +116,29 @@ class Session():
         self.optimizer.step()                   # Update model parameters
         return loss.data.tolist()[0]            # Return loss value
 
-    def train(self, schedule, epochs):
-        self.training = True
+    def run(self, schedule, epochs):
+        self.running = True
         lossMeter = LossMeter()
-        with TrainModel(self.model):
-            for cb in schedule.callbacks: cb.on_train_begin(self)       
-            for epoch in tqdm(range(epochs), desc="Epochs"):
-                if not self.training: break
-                for cb in schedule.callbacks: cb.on_epoch_begin(self)
-                running_loss = 0
-                for input, label in tqdm(schedule.data, desc="Steps", leave=False):
-                    if not self.training: break
-                    for cb in schedule.callbacks: cb.on_batch_begin(self)
-                    step_loss = self.step(input, label)         
-                    lossMeter.update(step_loss, label.shape[0])
-                    for cb in schedule.callbacks: cb.on_batch_end(self, lossMeter)
-                for cb in schedule.callbacks: cb.on_epoch_end(self, lossMeter)      
-            for cb in schedule.callbacks: cb.on_train_end(self)    
+        for cb in schedule.callbacks: cb.on_train_begin(self)       
+        for epoch in tqdm(range(epochs), desc="Epochs"):
+            if not self.running: break
+            for cb in schedule.callbacks: cb.on_epoch_begin(self)
+            running_loss = 0
+            for input, label in tqdm(schedule.data, desc="Steps", leave=False):
+                if not self.running: break
+                for cb in schedule.callbacks: cb.on_batch_begin(self)
+                step_loss = self.step(input, label)         
+                lossMeter.update(step_loss, label.shape[0])
+                for cb in schedule.callbacks: cb.on_batch_end(self, lossMeter)
+            for cb in schedule.callbacks: cb.on_epoch_end(self, lossMeter)      
+        for cb in schedule.callbacks: cb.on_train_end(self, lossMeter)   
 
-    def stop_training(self):
-        self.training = False
+    def train(self, schedule, epochs):      
+        with TrainModel(self.model):
+            self.run(schedule, epochs)
+
+    def stop(self):
+        self.running = False
     
 
 class TrainingSchedule():

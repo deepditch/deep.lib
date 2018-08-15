@@ -30,7 +30,7 @@ class LRFindScheduler(_OnBatchLRScheduler):
     def on_batch_end(self, session, lossMeter):
         self.losses.append(lossMeter.debias)
         if (math.isnan(lossMeter.debias) or lossMeter.debias > self.best*4):
-            session.stop_training()
+            session.stop()
         if (lossMeter.debias<self.best and self.iteration>10): self.best=lossMeter.debias
 
     def plot(self, iterations=None):

@@ -1,14 +1,16 @@
-import torch
-from torch.utils.data import Dataset, DataLoader
-from pathlib import Path
-import torchvision
-from torchvision import datasets, transforms
-import pandas as pd
-import cv2
+import os
 import numpy as np
 import itertools
-import os
-import Transforms.ImageTransforms
+from pathlib import Path
+import cv2
+import pandas as pd
+
+import torch
+from torch.utils.data import Dataset, DataLoader
+import torchvision
+from torchvision import datasets
+from torch import randperm
+
 
 def open_image(fn):
     """ Opens an image using OpenCV given the file path.
@@ -39,11 +41,66 @@ def open_image(fn):
 
 
 class ClassifierData():
-    def __init__(self, dataloaders):
-        self.dataloaders = dataloaders
+    def __init__(self, datasets, batch_size, shuffle=True, num_workers=4):
+        self.datasets = datasets
+        self.dataloaders = {
+            key: torch.utils.data.DataLoader(data, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers) 
+            for key, data in datasets.items() }
 
     def __getitem__(self, key):
         return self.dataloaders[key]
+
+
+class PartitionedData(ClassifierData):
+    def __init__(self, dataset, batch_size, partition_dict={'train': .8, 'valid': .2}, shuffle=True, num_workers=4):
+        """A class representing a set of torch dataloaders
+        
+        Arguments:
+            dataset {Dataset} -- Dictionary containing 1 or more torch Datasets
+            batch_size {int} -- Number of items returned by a dataloader each iteration
+        
+        Keyword Arguments:
+            partition_dict {dict} - Dictionary describing how to partition the data
+            shuffle {bool} -- Set to true to reshuffle the data (default: {True})
+            num_workers {int} -- How many subprocesses to load data (default: {4})
+        """
+        self.master_dataset = dataset
+        super().__init__(partition_data(dataset, partition_dict), batch_size, shuffle, num_workers)     
+
+
+def partition_data(dataset, partition_dict):
+    if sum(partition_dict.values()) != 1:
+        raise ValueError("Percentages must add up to 1")
+
+    indicies = np.random.permutation(len(dataset))
+    datasets = {}
+    start = 0
+    end = 0
+    for key, percentage in partition_dict.items():
+        end = int(len(dataset) * percentage) + start
+        datasets[key] = Subset(dataset, indicies[start:end])
+        start = end
+
+    return datasets
+
+
+class Subset(Dataset):
+    """
+    Subset of a dataset at specified indices.
+
+    Arguments:
+        dataset (Dataset): The whole Dataset
+        indices (sequence): Indices in the whole set selected for subset
+    """
+    def __init__(self, dataset, indices):
+        self.dataset = dataset
+        self.indices = indices
+
+    def __getitem__(self, idx):
+        return self.dataset[self.indices[idx]]
+
+    def __len__(self):
+        return len(self.indices)
 
 
 class ImageDataset(Dataset):
@@ -63,26 +120,46 @@ class ImageDataset(Dataset):
 def from_paths(path, batch_size, transforms):
     path = Path(path)
     image_datasets = {dir: datasets.ImageFolder(path/dir, transform) for dir, transform in transforms.items()}
-    dataloaders = {dir: torch.utils.data.DataLoader(data, batch_size=batch_size, shuffle=True, num_workers=4) for dir, data in image_datasets.items()}
-    return ClassifierData(dataloaders)
+    return ClassifierData(image_datasets, batch_size)
 
 
 def parse_csv_data(csv_file):
+    """ Parse a CSV file into inputs and labels
+
+    Arguments:
+        csv_file {str} -- Path where csv file is located
+    
+    Returns:
+        (str, str) -- first and second columns in the csv file
+    """
+
     path = Path(csv_file)
     df = pd.read_csv(path, dtype=str)
-    files = df[df.columns[0]]
-    labels = df[df.columns[1]]
-    return files, labels
+    xs = df[df.columns[0]]
+    ys = df[df.columns[1]]
+    return xs, ys
 
 
-def from_csv(dir, csv_file, batch_size, transforms):
+def from_csv(dir, csv_file, batch_size, transform):
+    """Create image ClassifierData from a csv file. CSV file should be formatted as (filename, label) where filename is unique
+    
+    Arguments:
+        dir {str} -- Folder containing image files
+        csv_file {str} -- Location of csv file
+        batch_size {int} -- Number of items returned by a dataloader each iteration
+        transform {Transform} -- Transforms to be applied to data
+    
+    Returns:
+        ClassifierData
+    """
+
+    dir = Path(dir)
     files, labels = parse_csv_data(csv_file)
     labels = [l.split(' ') for l in labels]
-    files = [os.path.join(dir, file) for file in files]
+    files = [dir/file for file in files]
     n_hot_lables, classes = make_n_hot_labels(labels)
-    dataset = ImageDataset(files, n_hot_lables, transforms)
-    dataloaders = {'train': torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=4)}
-    return ClassifierData(dataloaders), dataset
+    dataset = ImageDataset(files, n_hot_lables, transform)
+    return PartitionedData(dataset, batch_size)
 
 
 def make_n_hot_labels(labels):

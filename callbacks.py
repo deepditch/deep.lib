@@ -32,24 +32,21 @@ class Validator(TrainCallback):
         self.val_data = val_data
         self.hit_metric = hit_metric
 
-    def on_epoch_end(self, session, lossMeter):
-        val_loss = 0.0
+    def on_epoch_end(self, session, lossMeter): 
         num_correct = 0
-        total_examples = 0
+        valLoss = sess.LossMeter()
         with sess.EvalModel(session.model):
             for input, label in tqdm(self.val_data, desc="Validating", leave=False):
                 input = Variable(sess.to_gpu(input))
-                label = Variable(sess.to_gpu(label))
-                batch_size = label.shape[0]
-                total_examples += batch_size
+                label = Variable(sess.to_gpu(label)).long()
                 output = session.model(input)
-                val_loss += session.criterion(output, label).data.tolist()[0] * batch_size
+                step_loss = session.criterion(output, label).data.tolist()[0]
+                valLoss.update(step_loss, label.shape[0])
                 if self.hit_metric is not None:        
                     num_correct += self.hit_metric(output, label).data.tolist()[0]
         
-        val_loss = val_loss/total_examples
-        val_accuracy = num_correct/total_examples
-        print("Training Loss: %f  Validaton Loss: %f Validation Accuracy: %f" % (lossMeter.debias, val_loss, val_accuracy))
+        val_accuracy = num_correct/valLoss.count
+        print("Training Loss: %f  Validaton Loss: %f Validation Accuracy: %f" % (lossMeter.debias, valLoss.raw_avg, val_accuracy))
 
 
 class Saver(TrainCallback):
