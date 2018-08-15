@@ -2,12 +2,13 @@ import torch
 from torch.utils.data import Dataset, DataLoader
 from pathlib import Path
 import torchvision
-from torchvision import datasets
+from torchvision import datasets, transforms
 import pandas as pd
 import cv2
 import numpy as np
 import itertools
 import os
+import Transforms.ImageTransforms
 
 def open_image(fn):
     """ Opens an image using OpenCV given the file path.
@@ -24,9 +25,6 @@ def open_image(fn):
     elif os.path.isdir(fn) and not str(fn).startswith("http"):
         raise OSError('Is a directory: {}'.format(fn))
     else:
-        #res = np.array(Image.open(fn), dtype=np.float32)/255
-        #if len(res.shape)==2: res = np.repeat(res[...,None],3,2)
-        #return res
         try:
             if str(fn).startswith("http"):
                 req = urllib.urlopen(str(fn))
@@ -49,16 +47,17 @@ class ClassifierData():
 
 
 class ImageDataset(Dataset):
-    def __init__(self, files, labels, transforms):
+    def __init__(self, files, labels, transform):
         self.files = files
         self.labels = labels
-        self.transforms = transforms
+        self.transform = transform
     
     def __len__(self): return len(self.files)
 
     def __getitem__(self, i):
         file, label = self.files[i], self.labels[i]
-        return (self.transforms(open_image(file)), label)
+        x, y = self.transform(open_image(file), label)
+        return x, y
 
 
 def from_paths(path, batch_size, transforms):
@@ -66,17 +65,6 @@ def from_paths(path, batch_size, transforms):
     image_datasets = {dir: datasets.ImageFolder(path/dir, transform) for dir, transform in transforms.items()}
     dataloaders = {dir: torch.utils.data.DataLoader(data, batch_size=batch_size, shuffle=True, num_workers=4) for dir, data in image_datasets.items()}
     return ClassifierData(dataloaders)
-
-
-def make_n_hot_labels(labels):
-    classes = sorted(list(set(itertools.chain.from_iterable(labels))))
-    label2idx = {v:k for k,v in enumerate(classes)}
-    n_hot_labels = [[0] * len(classes) for l in labels]    
-    for i, l in enumerate(labels):
-        for classname in l:
-            n_hot_labels[i][label2idx[classname]] = 1
-
-    return n_hot_labels, classes
 
 
 def parse_csv_data(csv_file):
@@ -94,4 +82,15 @@ def from_csv(dir, csv_file, batch_size, transforms):
     n_hot_lables, classes = make_n_hot_labels(labels)
     dataset = ImageDataset(files, n_hot_lables, transforms)
     dataloaders = {'train': torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=4)}
-    return ClassifierData(dataloaders)
+    return ClassifierData(dataloaders), dataset
+
+
+def make_n_hot_labels(labels):
+    classes = sorted(list(set(itertools.chain.from_iterable(labels))))
+    label2idx = {v:k for k,v in enumerate(classes)}
+    n_hot_labels = [np.zeros((len(classes),), dtype=np.int_) for l in labels]     
+    for i, l in enumerate(labels):
+        for classname in l:
+            n_hot_labels[i][label2idx[classname]] = 1
+
+    return n_hot_labels, classes

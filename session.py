@@ -68,6 +68,7 @@ class Session():
         self.model = to_gpu(model)
         self.criterion = criterion
         self.optimizer = optimizer
+        self.metrics = {}
         self.training = False
 
     def save(self, name):
@@ -107,7 +108,7 @@ class Session():
 
     def step(self, input, label):
         input = Variable(to_gpu(input))
-        label = Variable(to_gpu(label))
+        label = Variable(to_gpu(label)).long()
         self.optimizer.zero_grad()              # Clear past gradent
         outputs = self.model(input)             # Forward pass
         loss = self.criterion(outputs, label)   # Calculate loss
