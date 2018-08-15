@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
+import os
 from tqdm import tqdm_notebook as tqdm, tnrange
 import session as sess
 from torch.autograd import Variable
@@ -49,6 +50,23 @@ class Validator(TrainCallback):
         val_loss = val_loss/total_examples
         val_accuracy = num_correct/total_examples
         print("Training Loss: %f  Validaton Loss: %f Validation Accuracy: %f" % (lossMeter.debias, val_loss, val_accuracy))
+
+
+class Saver(TrainCallback):
+    def __init__(self, dir):
+        self.dir = dir
+
+        if not os.path.exists(self.dir):
+            os.makedirs(self.dir)
+
+
+        self.best = 0
+        self.epoch = 0
+
+    def on_epoch_end(self, session, lossMeter):
+        self.epoch += 1
+        session.save('model.%d' % self.epoch)
+
 
 
 

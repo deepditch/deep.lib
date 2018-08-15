@@ -5,18 +5,19 @@ from LR_Schedule.lr_scheduler import _LRScheduler, _OnBatchLRScheduler
 import matplotlib.pyplot as plt
 from session import Session, TrainingSchedule
 import math
-
+import util
 
 class LRFindScheduler(_OnBatchLRScheduler):
-    def __init__(self, num_examples, start_lr=1e-5, end_lr=10):
+    def __init__(self, num_examples, start_lr=None, end_lr=10):
         super(LRFindScheduler, self).__init__()       
         self.losses = []
-        self.start_lr = start_lr
         self.end_lr = end_lr
         self.num_examples = num_examples
+        self.start_lr = start_lr
 
     def on_train_begin(self, session):
         super(LRFindScheduler, self).on_train_begin(session)
+        if self.start_lr is not None: self.base_lrs = util.listify(self.start_lr, session.optimizer.param_groups)
         self.multipliers = [(self.end_lr/base_lr)**(1/self.num_examples) for base_lr in self.base_lrs]
         self.lrs = []
         self.best=1e9
@@ -50,7 +51,7 @@ class LRFindScheduler(_OnBatchLRScheduler):
             ax_lr.plot(range(iterations), lr, 'b-')
 
 
-def lr_find(session, data, start_lr=1e-5, end_lr=10):
+def lr_find(session, data, start_lr=None, end_lr=10):
     session.save('temp')
     lr_scheduler = LRFindScheduler(len(data), start_lr, end_lr)
     schedule = TrainingSchedule(data, [lr_scheduler])
