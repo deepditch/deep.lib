@@ -9,9 +9,14 @@ import os
 import util
 
 USE_GPU = torch.cuda.is_available()
+
 def to_gpu(x, *args, **kwargs):
     '''puts pytorch variable to gpu, if cuda is available and USE_GPU is set to true. '''
     return x.cuda(*args, **kwargs) if USE_GPU else x
+
+
+def to_cpu(x, *args, **kwargs):
+    return x.cpu(*args, **kwargs) if USE_GPU else x
 
 
 class TrainModel():
@@ -106,15 +111,17 @@ class Session():
         for param_group, lr in zip(self.optimizer.param_groups, lrs):
             param_group['lr'] = lr
 
-    def step(self, input, label):
+    def forward(self, input):
         input = Variable(to_gpu(input))
-        label = Variable(to_gpu(label)).long()
-        self.optimizer.zero_grad()              # Clear past gradent
-        outputs = self.model(input)             # Forward pass
-        loss = self.criterion(outputs, label)   # Calculate loss
-        loss.backward()                         # Calculate new gradient
-        self.optimizer.step()                   # Update model parameters
-        return loss.data.tolist()[0]            # Return loss value
+        return self.model(input)
+
+    def step(self, input, label):    
+        self.optimizer.zero_grad()                                  # Clear past gradent                                         
+        outputs = self.forward(input)                               # Forward pass
+        loss = self.criterion(outputs, Variable(to_gpu(label)))     # Calculate loss
+        loss.backward()                                             # Calculate new gradient
+        self.optimizer.step()                                       # Update model parameters
+        return loss.data.tolist()[0]                                # Return loss value
 
     def run(self, schedule, epochs):
         self.running = True
@@ -131,7 +138,7 @@ class Session():
                 lossMeter.update(step_loss, label.shape[0])
                 for cb in schedule.callbacks: cb.on_batch_end(self, lossMeter)
             for cb in schedule.callbacks: cb.on_epoch_end(self, lossMeter)      
-        for cb in schedule.callbacks: cb.on_train_end(self, lossMeter)   
+        for cb in schedule.callbacks: cb.on_train_end(self)   
 
     def train(self, schedule, epochs):      
         with TrainModel(self.model):

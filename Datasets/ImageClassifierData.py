@@ -60,7 +60,7 @@ class PartitionedData(ClassifierData):
             batch_size {int} -- Number of items returned by a dataloader each iteration
         
         Keyword Arguments:
-            partition_dict {dict} - Dictionary describing how to partition the data
+            partition_dict {dict} -- Dictionary describing how to partition the data
             shuffle {bool} -- Set to true to reshuffle the data (default: {True})
             num_workers {int} -- How many subprocesses to load data (default: {4})
         """
@@ -85,12 +85,11 @@ def partition_data(dataset, partition_dict):
 
 
 class Subset(Dataset):
-    """
-    Subset of a dataset at specified indices.
+    """ Subset of a dataset at specified indices.
 
     Arguments:
-        dataset (Dataset): The whole Dataset
-        indices (sequence): Indices in the whole set selected for subset
+        dataset {Dataset} -- The whole Dataset
+        indices {sequence} -- Indices in the whole set selected for subset
     """
     def __init__(self, dataset, indices):
         self.dataset = dataset
@@ -165,7 +164,7 @@ def from_csv(dir, csv_file, batch_size, transform):
 def make_n_hot_labels(labels):
     classes = sorted(list(set(itertools.chain.from_iterable(labels))))
     label2idx = {v:k for k,v in enumerate(classes)}
-    n_hot_labels = [np.zeros((len(classes),), dtype=np.int_) for l in labels]     
+    n_hot_labels = [np.zeros((len(classes),), dtype=np.float32) for l in labels]     
     for i, l in enumerate(labels):
         for classname in l:
             n_hot_labels[i][label2idx[classname]] = 1

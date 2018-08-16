@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.optim as optim
 from callbacks import TrainCallback
 import matplotlib.pyplot as plt
+import copy
 
 class _LRScheduler(TrainCallback):
     def __init__(self, iteration=0):      
@@ -30,17 +31,19 @@ class _LRScheduler(TrainCallback):
         self.session.set_lr(self.get_lr())
         self.iteration += 1
 
-    def plot(self, iterations=None):
-        save_iter = self.iteration
-        self.iteration = 0
+    def reset(self): pass
 
-        if(iterations is None): iterations = save_iter
+    def plot(self, iterations=None):
+        cp = copy.deepcopy(self)
+        cp.reset()
+
+        if(iterations is None): iterations = cp.iteration
 
         lrs = []
 
         for i in range(iterations):
-            lrs.append(self.get_lr())
-            self.iteration += 1
+            lrs.append(cp.get_lr())
+            cp.iteration += 1
 
         fig, ax = plt.subplots()
 
@@ -49,8 +52,6 @@ class _LRScheduler(TrainCallback):
 
         for lr in [*zip(*lrs)]: # Matrix transposition
             ax.plot(range(iterations), lr)
-
-        self.iteration = save_iter
 
 
 class _OnEpochLRScheduler(_LRScheduler):
