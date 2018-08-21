@@ -84,6 +84,22 @@ def partition_data(dataset, partition_dict):
     return datasets
 
 
+def make_partition_indices(n, partition_dict):
+    if sum(partition_dict.values()) != 1:
+        raise ValueError("Percentages must add up to 1")
+
+    i_arr = np.random.permutation(n) # Index array: Array containing a random permutation of integers from 0 through (n-1)
+    indices = {}
+    start, end = 0, 0
+    for key, percentage in partition_dict.items():
+        end = int(n * percentage) + start
+        indices[key] = i_arr[start:end]
+        start = end
+
+    return indices
+
+
+
 class Subset(Dataset):
     """ Subset of a dataset at specified indices.
 
@@ -113,7 +129,8 @@ class ImageDataset(Dataset):
     def __getitem__(self, i):
         file, label = self.files[i], self.labels[i]
         x, y = self.transform(open_image(file), label)
-        return x, y
+        meta = {'file': str(file)}
+        return x, y, meta
 
 
 def from_paths(path, batch_size, transforms):
@@ -139,14 +156,15 @@ def parse_csv_data(csv_file):
     return xs, ys
 
 
-def from_csv(dir, csv_file, batch_size, transform):
+def from_csv(dir, csv_file, batch_size, train_transforms, val_trainsforms):
     """Create image ClassifierData from a csv file. CSV file should be formatted as (filename, label) where filename is unique
     
     Arguments:
         dir {str} -- Folder containing image files
         csv_file {str} -- Location of csv file
         batch_size {int} -- Number of items returned by a dataloader each iteration
-        transform {Transform} -- Transforms to be applied to data
+        train_transforms {Transform} -- Transforms to be applied to train data
+        val_trainsforms {Transform} -- Transforms to be applied to validation data
     
     Returns:
         ClassifierData
@@ -156,9 +174,13 @@ def from_csv(dir, csv_file, batch_size, transform):
     files, labels = parse_csv_data(csv_file)
     labels = [l.split(' ') for l in labels]
     files = [dir/file for file in files]
-    n_hot_lables, classes = make_n_hot_labels(labels)
-    dataset = ImageDataset(files, n_hot_lables, transform)
-    return PartitionedData(dataset, batch_size)
+    n_hot_labels, classes = make_n_hot_labels(labels)
+    i_dict = make_partition_indices(len(n_hot_labels), {'train': .8, 'valid': .2})
+    datasets = {
+        'train': ImageDataset(np.array(files)[i_dict['train']], np.array(n_hot_labels)[i_dict['train']], train_transforms),
+        'valid': ImageDataset(np.array(files)[i_dict['valid']], np.array(n_hot_labels)[i_dict['valid']], val_trainsforms)
+    }  
+    return ClassifierData(datasets, batch_size)
 
 
 def make_n_hot_labels(labels):

@@ -9,6 +9,13 @@ class _LRScheduler(TrainCallback):
     def __init__(self, iteration=0):      
         self.iteration = iteration
 
+    def get_lr(self): raise NotImplementedError 
+    def sub_reset(self): raise NotImplementedError
+
+    def reset(self): 
+        self.sub_reset()
+        self.iteration = 0
+
     def on_train_begin(self, session):
         self.session = session
         if self.iteration == 0:
@@ -22,22 +29,17 @@ class _LRScheduler(TrainCallback):
 
         self.base_lrs = list(map(lambda group: group['initial_lr'], self.session.optimizer.param_groups))
 
-    def get_lr(self):
-        raise NotImplementedError 
-
     def step(self, iteration=None):
         if iteration is not None:
             self.iteration = iteration    
         self.session.set_lr(self.get_lr())
         self.iteration += 1
 
-    def reset(self): pass
-
     def plot(self, iterations=None):
         cp = copy.deepcopy(self)
-        cp.reset()
-
         if(iterations is None): iterations = cp.iteration
+        cp.reset()
+        if cp.base_lrs is None: cp.base_lrs = [1]
 
         lrs = []
 

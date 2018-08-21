@@ -34,29 +34,31 @@ class OneHotAccuracy(_AccuracyMeter):
 class NHotAccuracy(_AccuracyMeter):
     def __init__(self, num_classes):        
         self.num_classes = num_classes
+        self.num_correct = 0
         self.reset()
 
     def reset(self):
         self.num_correct = 0
         self.count = 0
-        self.false_positives = 0
-        self.false_negatives = 0
         self.details = [{"correct_pos":0, "correct_neg":0, "false_pos":0, "false_neg":0} for i in range(self.num_classes)]
     
     def accuracy(self): 
         return self.num_correct / self.count
 
+    def update_from_numpy(self, preds, labels):
+        self.count += labels.shape[0] * self.num_classes
+        self.num_correct += np.sum(preds == labels)
+        for pred, label, detail in zip(zip(*preds), zip(*labels), self.details):
+            detail["correct_pos"] += np.sum([p and l for p, l in zip(pred, label)])
+            detail["correct_neg"] += np.sum([not p and not l for p, l in zip(pred, label)])
+            detail["false_pos"] += np.sum([p and not l for p, l in zip(pred, label)])
+            detail["false_neg"] += np.sum([not p and l for p, l in zip(pred, label)])
+
     def update(self, outputs, labels):
         preds = torch.clamp(torch.round(sess.to_cpu(outputs).data), 0, 1).numpy().astype(int)
         labels = sess.to_cpu(labels).data.numpy().astype(int)
-        self.num_correct += np.sum(preds == labels)
-        for pred, labl, detail in zip(preds, labels, self.details):
-            detail["correct_pos"] += np.sum([p and l for p, l in zip(pred, labl)])
-            detail["correct_neg"] += np.sum([not p and not l for p, l in zip(pred, labl)])
-            detail["false_pos"] += np.sum([p and not l for p, l in zip(pred, labl)])
-            detail["false_neg"] += np.sum([not p and l for p, l in zip(pred, labl)])
-        
-        self.count += labels.shape[0] * self.num_classes
+
+        self.update_from_numpy(preds, labels)       
 
 
 class Validator(TrainCallback):
@@ -68,7 +70,7 @@ class Validator(TrainCallback):
         self.accuracy_meter.reset()
         valLoss = sess.LossMeter()
         with sess.EvalModel(session.model):
-            for input, label in tqdm(self.val_data, desc="Validating", leave=False):
+            for input, label, *_ in tqdm(self.val_data, desc="Validating", leave=False):
                 label = Variable(sess.to_gpu(label))
                 output = session.forward(input)
                 step_loss = session.criterion(output, label).data.tolist()[0]

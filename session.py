@@ -67,13 +67,14 @@ class LossMeter(object):
         self.interpolated_avg = self.interpolated_avg * .98 + loss * (1-.98)
         self.debias = self.interpolated_avg / (1 - .98**self.batches)
 
-
 class Session():
-    def __init__(self, model, criterion, optimizer):
+    def __init__(self, model, criterion, optim_fn, lrs=1e-3):
         self.model = to_gpu(model)
-        self.criterion = criterion
-        self.optimizer = optimizer
-        self.metrics = {}
+        self.criterion = criterion    
+        self.optim_fn = optim_fn
+        param_arr = [{'params':layer.parameters(), 'lr':0} for layer in self.model.children()]
+        self.optimizer = self.optim_fn(param_arr)
+        self.set_lr(lrs)
         self.running = False
 
     def save(self, name):
@@ -108,6 +109,9 @@ class Session():
 
     def set_lr(self, lrs):
         lrs = util.listify(lrs, self.optimizer.param_groups)
+        if len(lrs) != len(self.optimizer.param_groups):
+            raise ValueError("Size Mismatch: Expected lrs of length {} but got {}".format(len(self.optimizer.param_groups), len(lrs)))
+
         for param_group, lr in zip(self.optimizer.param_groups, lrs):
             param_group['lr'] = lr
 
@@ -131,7 +135,7 @@ class Session():
             if not self.running: break
             for cb in schedule.callbacks: cb.on_epoch_begin(self)
             running_loss = 0
-            for input, label in tqdm(schedule.data, desc="Steps", leave=False):
+            for input, label, *_ in tqdm(schedule.data, desc="Steps", leave=False):
                 if not self.running: break
                 for cb in schedule.callbacks: cb.on_batch_begin(self)
                 step_loss = self.step(input, label)         

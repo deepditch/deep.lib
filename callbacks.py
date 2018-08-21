@@ -23,7 +23,6 @@ class Saver(TrainCallback):
         if not os.path.exists(self.dir):
             os.makedirs(self.dir)
 
-
         self.best = 0
         self.epoch = 0
 
