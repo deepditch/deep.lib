@@ -1,22 +1,11 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from LR_Schedule.lr_scheduler import *
-import callbacks
 from torch.autograd import Variable
+import callbacks
 from tqdm import tqdm_notebook as tqdm, tnrange
 import os
 import util
-
-USE_GPU = torch.cuda.is_available()
-
-def to_gpu(x, *args, **kwargs):
-    '''puts pytorch variable to gpu, if cuda is available and USE_GPU is set to true. '''
-    return x.cuda(*args, **kwargs) if USE_GPU else x
-
-
-def to_cpu(x, *args, **kwargs):
-    return x.cpu(*args, **kwargs) if USE_GPU else x
 
 
 class TrainModel():
@@ -67,9 +56,10 @@ class LossMeter(object):
         self.interpolated_avg = self.interpolated_avg * .98 + loss * (1-.98)
         self.debias = self.interpolated_avg / (1 - .98**self.batches)
 
+
 class Session():
     def __init__(self, model, criterion, optim_fn, lrs=1e-3):
-        self.model = to_gpu(model)
+        self.model = util.to_gpu(model)
         self.criterion = criterion    
         self.optim_fn = optim_fn
         param_arr = [{'params':layer.parameters(), 'lr':0} for layer in self.model.children()]
@@ -116,13 +106,13 @@ class Session():
             param_group['lr'] = lr
 
     def forward(self, input):
-        input = Variable(to_gpu(input))
+        input = Variable(util.to_gpu(input))
         return self.model(input)
 
     def step(self, input, label):    
         self.optimizer.zero_grad()                                  # Clear past gradent                                         
         outputs = self.forward(input)                               # Forward pass
-        loss = self.criterion(outputs, Variable(to_gpu(label)))     # Calculate loss
+        loss = self.criterion(outputs, Variable(util.to_gpu(label)))     # Calculate loss
         loss.backward()                                             # Calculate new gradient
         self.optimizer.step()                                       # Update model parameters
         return loss.data.tolist()[0]                                # Return loss value
@@ -159,8 +149,3 @@ class TrainingSchedule():
 
     def add_callback(self, callback):
         self.callbacks.append(callback)
-
-
-
-    
-

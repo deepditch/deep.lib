@@ -7,6 +7,7 @@ import session as sess
 from torch.autograd import Variable
 import numpy as np
 from callbacks import TrainCallback
+import util
 
 class _AccuracyMeter:
     def accuracy(self): raise NotImplementedError
@@ -55,8 +56,8 @@ class NHotAccuracy(_AccuracyMeter):
             detail["false_neg"] += np.sum([not p and l for p, l in zip(pred, label)])
 
     def update(self, outputs, labels):
-        preds = torch.clamp(torch.round(sess.to_cpu(outputs).data), 0, 1).numpy().astype(int)
-        labels = sess.to_cpu(labels).data.numpy().astype(int)
+        preds = torch.clamp(torch.round(util.to_cpu(outputs).data), 0, 1).numpy().astype(int)
+        labels = util.to_cpu(labels).data.numpy().astype(int)
 
         self.update_from_numpy(preds, labels)       
 
@@ -71,7 +72,7 @@ class Validator(TrainCallback):
         valLoss = sess.LossMeter()
         with sess.EvalModel(session.model):
             for input, label, *_ in tqdm(self.val_data, desc="Validating", leave=False):
-                label = Variable(sess.to_gpu(label))
+                label = Variable(util.to_gpu(label))
                 output = session.forward(input)
                 step_loss = session.criterion(output, label).data.tolist()[0]
                 valLoss.update(step_loss, label.shape[0])
