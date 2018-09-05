@@ -5,14 +5,17 @@ import numpy as np
 
 class Transform():
     def __call__(self, x, y):
-        return self.transform_x(x), self.transform_y(y)
+        return self.transform_x(x), self.transform_y(y, x)
 
     def transform_x(self, x): return x
 
-    def transform_y(self, y): return y
+    def transform_y(self, y, x): return y
 
 
 class TransformList(Transform):
+    '''A class that allows for the composition of transforms
+    '''
+
     def __init__(self, transforms):
         self.transforms = transforms
 
@@ -30,9 +33,43 @@ class RandomTransform(Transform):
     def set_state(self): raise NotImplementedError
 
 
-class CoordTransform(Transform):
-    def transform_y(self, y):
-        return transform_x(y)
+def to_hw(mask):
+    cols,rows = np.nonzero(mask)
+    if len(cols)==0: return np.zeros(4, dtype=np.float32)
+    center_x = (np.max(cols) + np.min(cols)) / 2
+    center_y = (np.max(rows) + np.min(rows)) / 2
+    width = int(np.max(cols) - np.min(cols))
+    height = int(np.max(rows) - np.min(rows))
+    return np.array([center_x, center_y, width, height], dtype=np.float32)
+
+class GeometricTransform(Transform):
+    """ A coordinate transform.  """
+
+    @staticmethod
+    def make_mask(y, x):
+        '''Creates a rectangular mask for the bounding box y on the image x
+        
+        Arguments:
+            y {list} -- [center_x, center_y, width, height]
+            x {image tensor} -- Image data
+        
+        Returns:
+            numpy array -- A matrix with width and height that match x
+        '''
+        r,c,*_ = x.shape
+        mask = np.zeros((r, c))
+        x_min = int(y[0] - y[2] / 2)
+        y_min = int(y[0] - y[2] / 2)
+        x_max = int(y[0] + y[2] / 2)
+        y_max = int(y[0] + y[2] / 2)
+
+        mask[x_min:x_max, y_min:y_max] = 1.
+        return mask
+
+    def transform_y(self, y, x):
+        y_mask = GeometricTransform.make_mask(y, x)
+        y_trfm = self.transform_x(y_mask)
+        return to_hw(y_trfm)
 
 
 class AddPadding(Transform):
@@ -49,7 +86,7 @@ class AddPadding(Transform):
 class AddPaddingBB(AddPadding):
     ''' Adds padding to an image and transforms [min x, min y, max x, max y] bounding box label accordingly
     '''
-    def transform_y(self, bb):
+    def transform_y(self, bb, x):
         bb[0] += self.pad # x_min
         bb[1] += self.pad # y_min
         bb[2] += self.pad # x_max
@@ -57,9 +94,9 @@ class AddPaddingBB(AddPadding):
 
 
 class AddPaddingHW(AddPadding):
-    ''' Adds padding to an image and transforms [center x, center y, height, width] bounding box label accordingly
+    ''' Adds padding to an image and transforms [center x, center y, width, height] bounding box label accordingly
     '''
-    def transform_y(self, hw):
+    def transform_y(self, hw, x):
         bb[0] += self.pad # center_x
         bb[1] += self.pad # center_y
 

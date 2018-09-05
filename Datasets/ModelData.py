@@ -1,0 +1,67 @@
+
+import torch
+from torch.utils.data import Dataset, DataLoader
+import numpy as np
+
+
+class ModelData():
+    def __init__(self, datasets, batch_size, shuffle=True, num_workers=4):
+        self.datasets = datasets
+        self.dataloaders = {
+            key: torch.utils.data.DataLoader(data, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers) 
+            for key, data in datasets.items() }
+
+    def __getitem__(self, key):
+        return self.dataloaders[key]
+
+
+class Subset(Dataset):
+    """ Subset of a dataset at specified indices.
+
+    Arguments:
+        dataset {Dataset} -- The whole Dataset
+        indices {sequence} -- Indices in the whole set selected for subset
+    """
+    def __init__(self, dataset, indices):
+        self.dataset = dataset
+        self.indices = indices
+
+    def __getitem__(self, idx):
+        return self.dataset[self.indices[idx]]
+
+    def __len__(self):
+        return len(self.indices)
+
+
+class PartitionedData(ModelData):
+    def __init__(self, dataset, batch_size, partition_dict={'train': .8, 'valid': .2}, shuffle=True, num_workers=4):
+        """A class for partitioning a dataset
+        
+        Arguments:
+            dataset {Dataset} -- A torch dataset
+            batch_size {int} -- Number of items returned by a dataloader each iteration
+        
+        Keyword Arguments:
+            partition_dict {dict} -- Dictionary describing how to partition the data
+            shuffle {bool} -- Set to true to reshuffle the data (default: {True})
+            num_workers {int} -- How many subprocesses to load data (default: {4})
+        """
+        self.master_dataset = dataset
+        i_dict = make_partition_indices(partition_dict)
+        datasets = {key: Subset(dataset, indicies) for key, indicies in i_dict.items()}
+        super().__init__(datasets, batch_size, shuffle, num_workers)     
+
+
+def make_partition_indices(n, partition_dict):
+    if sum(partition_dict.values()) != 1:
+        raise ValueError("Percentages must add up to 1")
+
+    i_arr = np.random.permutation(n) # Index array: Array containing a random permutation of integers from 0 through (n-1)
+    indices = {}
+    start, end = 0, 0
+    for key, percentage in partition_dict.items():
+        end = int(n * percentage) + start
+        indices[key] = i_arr[start:end]
+        start = end
+
+    return indices
