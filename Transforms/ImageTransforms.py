@@ -2,6 +2,7 @@ import cv2
 import math
 import random
 import numpy as np
+import Datasets.ModelData as md
 
 class Transform():
     def __call__(self, x, y):
@@ -42,6 +43,7 @@ def to_hw(mask):
     height = int(np.max(rows) - np.min(rows))
     return np.array([center_x, center_y, width, height], dtype=np.float32)
 
+
 class GeometricTransform(Transform):
     """ A coordinate transform.  """
 
@@ -59,20 +61,31 @@ class GeometricTransform(Transform):
         r,c,*_ = x.shape
         mask = np.zeros((r, c))
         x_min = int(y[0] - y[2] / 2)
-        y_min = int(y[0] - y[2] / 2)
+        y_min = int(y[1] - y[3] / 2)
         x_max = int(y[0] + y[2] / 2)
-        y_max = int(y[0] + y[2] / 2)
+        y_max = int(y[1] + y[3] / 2)
 
         mask[x_min:x_max, y_min:y_max] = 1.
         return mask
 
     def transform_y(self, y, x):
-        y_mask = GeometricTransform.make_mask(y, x)
-        y_trfm = self.transform_x(y_mask)
-        return to_hw(y_trfm)
+        if not isinstance(y, md.StructuredLabel):
+            return y
+
+        for i,label in enumerate(y):
+            data, data_type = label
+            print(data)
+            print(data_type)
+            if(data_type == md.LabelType.BOUNDING_BOX):
+                boxes = [data[i:i+4] for i in range(0, len(data), 4)] # Partition into array of bounding boxes
+                masks = [GeometricTransform.make_mask(bb, x) for bb in boxes] # Create masks from bounding boxes
+                trfms = [self.transform_x(mask) for mask in masks] # Transform masks
+                y[i] = ([to_hw(t) for t in trfms], data_type) # Update Label
+        
+        return y
 
 
-class AddPadding(Transform):
+class AddPadding(GeometricTransform):
     ''' Adds padding to an image
     '''
     def __init__(self, pad, mode=cv2.BORDER_REFLECT):
@@ -83,25 +96,7 @@ class AddPadding(Transform):
         return cv2.copyMakeBorder(im, self.pad, self.pad, self.pad, self.pad, self.mode)
 
 
-class AddPaddingBB(AddPadding):
-    ''' Adds padding to an image and transforms [min x, min y, max x, max y] bounding box label accordingly
-    '''
-    def transform_y(self, bb, x):
-        bb[0] += self.pad # x_min
-        bb[1] += self.pad # y_min
-        bb[2] += self.pad # x_max
-        bb[3] += self.pad # y_max
-
-
-class AddPaddingHW(AddPadding):
-    ''' Adds padding to an image and transforms [center x, center y, width, height] bounding box label accordingly
-    '''
-    def transform_y(self, hw, x):
-        bb[0] += self.pad # center_x
-        bb[1] += self.pad # center_y
-
-
-class Scale(Transform):
+class Scale(GeometricTransform):
     def __init__(self, size):
         self.size = size
 
@@ -124,13 +119,13 @@ class RandomScale(Scale, RandomTransform):
         self.size = math.floor(self.init_size * random.uniform(*self.scale))
 
 
-class CenterCrop(Transform):
+class CenterCrop(GeometricTransform):
     def __init__(self, size):
         if not isinstance(size, (list, tuple)): size = (size, size)
         self.size = size    
 
 
-class RandomCrop(RandomTransform):
+class RandomCrop(RandomTransform, GeometricTransform):
     def __init__(self, size):
         self.size = size
 
@@ -167,7 +162,7 @@ class RandomLighting(RandomTransform):
         return lighting(im, b, c)
 
 
-class RandomHorizontalFlip(RandomTransform):
+class RandomHorizontalFlip(RandomTransform, GeometricTransform):
     def set_state(self):
         self.flip = random.random() > .5
 

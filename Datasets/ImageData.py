@@ -9,8 +9,9 @@ from torch.utils.data import Dataset, DataLoader
 import torchvision
 from torchvision import datasets
 
-import Datasets.ModelData as ModelData
+import Datasets.ModelData as md
 import Datasets.ClassifierData as ClassifierData
+
 
 def open_image(fn):
     """ Opens an image using OpenCV given the file path.
@@ -58,7 +59,7 @@ class ImageDataset(Dataset):
 def from_paths(path, batch_size, transforms):
     path = Path(path)
     image_datasets = {dir: datasets.ImageFolder(path/dir, transform) for dir, transform in transforms.items()}
-    return ModelData(image_datasets, batch_size)
+    return md.ModelData(image_datasets, batch_size)
 
 
 def parse_csv_data(csv_file):
@@ -97,9 +98,9 @@ def from_csv(dir, csv_file, batch_size, train_transforms, val_trainsforms):
     labels = [l.split(' ') for l in labels]
     files = [dir/file for file in files]
     n_hot_labels, classes = ClassifierData.make_n_hot_labels(labels)
-    i_dict = ModelData.make_partition_indices(len(n_hot_labels), {'train': .8, 'valid': .2})
+    i_dict = md.make_partition_indices(len(n_hot_labels), {'train': .8, 'valid': .2})
     datasets = {
         'train': ImageDataset(np.array(files)[i_dict['train']], np.array(n_hot_labels)[i_dict['train']], train_transforms),
         'valid': ImageDataset(np.array(files)[i_dict['valid']], np.array(n_hot_labels)[i_dict['valid']], val_trainsforms)
     }  
-    return ModelData(datasets, batch_size)
+    return md.ModelData(datasets, batch_size)

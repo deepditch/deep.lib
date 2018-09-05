@@ -1,8 +1,7 @@
-
 import torch
 from torch.utils.data import Dataset, DataLoader
 import numpy as np
-
+from enum import Enum
 
 class ModelData():
     def __init__(self, datasets, batch_size, shuffle=True, num_workers=4):
@@ -65,3 +64,25 @@ def make_partition_indices(n, partition_dict):
         start = end
 
     return indices
+
+
+class LabelType(Enum):
+    CATEGORY = 1
+    COORDINATE = 2 # List of concatinated coordinates: [x,y] * n
+    BOUNDING_BOX = 3 # List of concatinated bounding boxes: [center_x, center_y, width, height] * n
+    NA = 4
+
+
+class StructuredLabel(list):
+    '''Wrapper class representing a structured label where portions of the label are classified with a LabelType
+    '''
+
+    def __init__(self, label=[]):
+        '''initialize a StructuredLabel object
+        
+        Arguments:
+            label {list of tuple} -- a list of tuples where each tuple is of the format (label, LabelType)
+        '''
+        super().__init__(label)
+
+        # TODO: Add label format verification
