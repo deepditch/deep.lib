@@ -17,3 +17,6 @@ def listify(x, y):
     n = y if type(y)==int else len(y)
     if len(x)==1: x = x * n
     return x
+
+def partition(x, sz):
+    return [x[i:i+4] for i in range(0, len(x), 4)]

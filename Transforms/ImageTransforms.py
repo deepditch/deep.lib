@@ -3,6 +3,7 @@ import math
 import random
 import numpy as np
 import Datasets.ModelData as md
+import util
 
 class Transform():
     def __call__(self, x, y):
@@ -34,7 +35,7 @@ class RandomTransform(Transform):
     def set_state(self): raise NotImplementedError
 
 
-def to_hw(mask):
+def mask_to_hw(mask):
     cols,rows = np.nonzero(mask)
     if len(cols)==0: return np.zeros(4, dtype=np.float32)
     center_x = (np.max(cols) + np.min(cols)) / 2
@@ -42,6 +43,22 @@ def to_hw(mask):
     width = int(np.max(cols) - np.min(cols))
     height = int(np.max(rows) - np.min(rows))
     return np.array([center_x, center_y, width, height], dtype=np.float32)
+
+def corners_to_hw(a): 
+    """Convert top left bottom right bounding box to center height width bounding box.
+
+    Args:
+        param1 (arr): [xmin, ymin, xmax, ymax] where (xmin, ymin) 
+            and (xmax, ymax) represent the top left and bottom 
+            right corners of the bounding box
+
+    Returns:
+        arr: [xmin, ymin, width, height]
+
+    """
+    return [a[0],a[1],a[2]-a[0],a[3]-a[1]]
+
+assert corners_to_hw([2, 5, 10, 20]) == [2, 5, 8, 15]
 
 
 class GeometricTransform(Transform):
@@ -72,17 +89,18 @@ class GeometricTransform(Transform):
         if not isinstance(y, md.StructuredLabel):
             return y
 
-        for i,label in enumerate(y):
+        ret = deepcopy(y)
+
+        for label in y:
             data, data_type = label
-            print(data)
-            print(data_type)
             if(data_type == md.LabelType.BOUNDING_BOX):
-                boxes = [data[i:i+4] for i in range(0, len(data), 4)] # Partition into array of bounding boxes
+                print(data, data_type)
+                boxes = util.partition(data, 4) # Partition into array of bounding boxes
                 masks = [GeometricTransform.make_mask(bb, x) for bb in boxes] # Create masks from bounding boxes
                 trfms = [self.transform_x(mask) for mask in masks] # Transform masks
-                y[i] = ([to_hw(t) for t in trfms], data_type) # Update Label
+                ret.append((np.concatinate([mask_to_hw(t) for t in trfms]), data_type)) 
         
-        return y
+        return ret
 
 
 class AddPadding(GeometricTransform):
