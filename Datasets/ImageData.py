@@ -3,6 +3,7 @@ import numpy as np
 from pathlib import Path
 import cv2
 import pandas as pd
+from copy import deepcopy
 
 import torch
 from torch.utils.data import Dataset, DataLoader
@@ -51,6 +52,7 @@ class ImageDataset(Dataset):
 
     def __getitem__(self, i):
         file, label = self.files[i], self.labels[i]
+        label = deepcopy(label) # Transformations happen in place. Need to deepcopy original label
         x, y = self.transform(open_image(file), label)
         meta = {'file': str(file)}
         return x, y, meta

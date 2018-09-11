@@ -3,7 +3,6 @@ import torch.nn as nn
 import torch.optim as optim
 from callbacks import TrainCallback
 import matplotlib.pyplot as plt
-import copy
 
 class _LRScheduler(TrainCallback):
     def __init__(self, iteration=0):      

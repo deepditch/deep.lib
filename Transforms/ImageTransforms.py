@@ -4,6 +4,7 @@ import random
 import numpy as np
 import Datasets.ModelData as md
 import util
+import matplotlib.pyplot as plt
 
 class Transform():
     def __call__(self, x, y):
@@ -35,17 +36,39 @@ class RandomTransform(Transform):
     def set_state(self): raise NotImplementedError
 
 
-def mask_to_hw(mask):
-    cols,rows = np.nonzero(mask)
-    if len(cols)==0: return np.zeros(4, dtype=np.float32)
-    center_x = (np.max(cols) + np.min(cols)) / 2
-    center_y = (np.max(rows) + np.min(rows)) / 2
-    width = int(np.max(cols) - np.min(cols))
-    height = int(np.max(rows) - np.min(rows))
-    return np.array([center_x, center_y, width, height], dtype=np.float32)
+def center_to_mask(a, im):
+    '''Creates a rectangular mask for the bounding box y on an image of width and height
+        
+    Arguments:
+        y {list} -- [center_x, center_y, width, height]
+        width {int} -- Width of the image
+        height {int} -- Height of the image
+    
+    Returns:
+        numpy array -- A matrix with width and height that match x
+    '''
+    mask = np.zeros(im.shape[:2],np.uint8)
+    bb = center_to_corners(a)
+    mask[bb[1]:bb[3], bb[0]:bb[2]] = 1.
+    return mask
+
+
+def mask_to_center(mask):
+    '''Converts an image mask to a [center, width, height] bounding box  
+    
+    Arguments:
+        mask {matrix} -- matrix containing an image mask
+    
+    Returns:
+        list -- [center_x, center_y, width, height]
+    '''
+    points = cv2.findNonZero(mask)
+    rect = cv2.boundingRect(points)
+    return hw_to_center(rect)
+
 
 def corners_to_hw(a): 
-    """Convert top left bottom right bounding box to center height width bounding box.
+    """Convert (top left, bottom right) bounding box to (top left, width, height) bounding box.
 
     Args:
         param1 (arr): [xmin, ymin, xmax, ymax] where (xmin, ymin) 
@@ -56,51 +79,118 @@ def corners_to_hw(a):
         arr: [xmin, ymin, width, height]
 
     """
-    return [a[0],a[1],a[2]-a[0],a[3]-a[1]]
+    bbs = util.partition(a, 4)
+    bbs = [[int(a[0]),
+            int(a[1]),
+            int(a[2]-a[0]),
+            int(a[3]-a[1])] for a in bbs]
 
-assert corners_to_hw([2, 5, 10, 20]) == [2, 5, 8, 15]
+    return np.concatenate(bbs)
 
+assert (corners_to_hw([2, 5, 10, 20]) == [2, 5, 8, 15]).all()
+
+
+def corners_to_center(a):
+    """Convert (top left, bottom right) bounding box to (center, width, height) bounding box.
+
+    Args:
+        param1 (arr): [xmin, ymin, xmax, ymax] where (xmin, ymin) 
+            and (xmax, ymax) represent the top left and bottom 
+            right corners of the bounding box
+
+    Returns:
+        arr: [center_x, center_y, width, height]
+
+    """
+    bbs = util.partition(a, 4)
+    bbs = [[(a[0]+a[2])/2, 
+            (a[1]+a[3])/2, 
+            int(a[2]-a[0]), 
+            int(a[3]-a[1])] for a in bbs]
+    return np.concatenate(bbs)
+
+assert (corners_to_center([2, 5, 10, 20]) == [6, 12.5, 8, 15]).all()
+
+
+def center_to_hw(a):
+    """Convert (center, width, height) bounding box to (top left, width, height) bounding box.
+
+    Args:
+        param1 (arr): [center_x, center_y, width, height] where (center_x, center_y) 
+            represents the center of the bounding box 
+
+    Returns:
+        arr: [xmin, ymin, width, height]
+
+    """
+    bbs = util.partition(a, 4)
+    bbs = [[int(a[0]-a[2]/2), 
+            int(a[1]-a[3]/2), 
+            int(a[2]), 
+            int(a[3])] for a in bbs]
+
+    return np.concatenate(bbs)
+
+assert (center_to_hw([6, 12.5, 8, 15]) == [2, 5, 8, 15]).all()
+
+
+def center_to_corners(a):
+    """Convert (center, width, height) bounding box to (top left, bottom right) bounding box.
+
+    Args:
+        param1 (arr): [center_x, center_y, width, height] where (center_x, center_y) 
+            represents the center of the bounding box 
+
+    Returns:
+        arr: [xmin, ymin, xmax, ymax]
+
+    """
+    bbs = util.partition(a, 4)
+    bbs = [[int(a[0]-a[2]/2), 
+            int(a[1]-a[3]/2), 
+            int(a[0]+a[2]/2), 
+            int(a[1]+a[3]/2)] for a in bbs]
+
+    return np.concatenate(bbs)
+
+assert (center_to_corners([6, 12.5, 8, 15]) == [2, 5, 10, 20]).all()
+
+def hw_to_center(a):
+    """Convert (top left, width, height) bounding box to (center, width, height) bounding box.
+
+    Args:
+        param1 (arr): [xmin, ymin, width, height] where (xmin, ymin) 
+            represents the top left of the bounding box 
+
+    Returns:
+        arr: [center_x, center_y, width, height]
+
+    """
+    bbs = util.partition(a, 4)
+    bbs = [[a[0]+a[2]/2, 
+            a[1]+a[3]/2, 
+            a[2], 
+            a[3]] for a in bbs]
+
+    return np.concatenate(bbs)
+
+assert (hw_to_center([2, 5, 8, 15]) == [6, 12.5, 8, 15]).all()
 
 class GeometricTransform(Transform):
-    """ A coordinate transform.  """
-
-    @staticmethod
-    def make_mask(y, x):
-        '''Creates a rectangular mask for the bounding box y on the image x
-        
-        Arguments:
-            y {list} -- [center_x, center_y, width, height]
-            x {image tensor} -- Image data
-        
-        Returns:
-            numpy array -- A matrix with width and height that match x
-        '''
-        r,c,*_ = x.shape
-        mask = np.zeros((r, c))
-        x_min = int(y[0] - y[2] / 2)
-        y_min = int(y[1] - y[3] / 2)
-        x_max = int(y[0] + y[2] / 2)
-        y_max = int(y[1] + y[3] / 2)
-
-        mask[x_min:x_max, y_min:y_max] = 1.
-        return mask
-
     def transform_y(self, y, x):
         if not isinstance(y, md.StructuredLabel):
             return y
 
-        ret = deepcopy(y)
-
-        for label in y:
+        for i, label in enumerate(y):
             data, data_type = label
             if(data_type == md.LabelType.BOUNDING_BOX):
-                print(data, data_type)
+                r,c,*_ = x.shape
                 boxes = util.partition(data, 4) # Partition into array of bounding boxes
-                masks = [GeometricTransform.make_mask(bb, x) for bb in boxes] # Create masks from bounding boxes
-                trfms = [self.transform_x(mask) for mask in masks] # Transform masks
-                ret.append((np.concatinate([mask_to_hw(t) for t in trfms]), data_type)) 
+                masks = [center_to_mask(bb, x) for bb in boxes]  # Create masks from bounding boxes
+                trfms = [self.transform_x(mask) for mask in masks]  # Transform masks
+                y[i] = (np.concatenate([mask_to_center(t) for t in trfms]), data_type) # Convert masks back into bounding boxes, save result
         
-        return ret
+        return y
 
 
 class AddPadding(GeometricTransform):
@@ -156,28 +246,6 @@ class RandomCrop(RandomTransform, GeometricTransform):
         start_r = np.floor(self.rand_r*(r-self.size)).astype(int)
         start_c = np.floor(self.rand_c*(c-self.size)).astype(int)
         return im[start_r:start_r+self.size, start_c:start_c+self.size]
-
-
-def lighting(im, b, c):
-    """ Adjust image balance and contrast """
-    if b==0 and c==1: return im
-    mu = np.average(im)
-    return np.clip((im-mu)*c+mu+b,0.,1.).astype(np.float32)
-
-
-class RandomLighting(RandomTransform):
-    def __init__(self, b, c):
-        self.b,self.c = b,c
-
-    def set_state(self):
-        self.b_rand = random.random()*(self.b*2)-self.b
-        self.c_rand = random.random()*(self.b*2)-self.c
-
-    def transform_x(self, im):
-        b = self.b_rand
-        c = self.c_rand
-        c = -1/(c-1) if c<0 else c+1
-        return lighting(im, b, c)
 
 
 class RandomHorizontalFlip(RandomTransform, GeometricTransform):
