@@ -6,6 +6,8 @@ import session
 import math
 
 class CosAnneal(_OnBatchLRScheduler):
+    '''Cosine annealing learning rate schedule'''
+
     def __init__(self, T_max, lr_min=0, iteration=0, T_mult=1):
         self.lr_min = lr_min       
         self.T_max = T_max
