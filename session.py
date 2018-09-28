@@ -63,8 +63,8 @@ class Session():
         self.criterion = criterion    
         self.optim_fn = optim_fn
         param_arr = [{'params':layer.parameters(), 'lr':0} for layer in self.model.children()]
-        self.optimizer = self.optim_fn(param_arr)
-        self.set_lr(lrs)
+        self.optimizer = self.optim_fn(param_arr) # Initialize with learning rate of 0
+        self.set_lr(lrs) # Update learning rate from passed lrs
         self.running = False
 
     def save(self, name):

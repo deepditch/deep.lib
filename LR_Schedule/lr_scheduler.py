@@ -25,7 +25,14 @@ class _LRScheduler(TrainCallback):
 
         raise NotImplementedError 
 
-    def sub_reset(self): raise NotImplementedError
+    def sub_reset(self): 
+        '''Resets internal state of the schedule
+        
+        Raises:
+            NotImplementedError -- Sub classes must implement this method. If the sub class has no internal state, can pass
+        '''
+
+        raise NotImplementedError
 
     def reset(self): 
         '''Resets the schedule'''
