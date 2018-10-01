@@ -2,10 +2,11 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.autograd import Variable
+import util
 import callbacks
 from tqdm import tqdm_notebook as tqdm, tnrange
 import os
-import util
+
 
 
 class TrainModel():

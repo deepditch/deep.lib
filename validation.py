@@ -67,11 +67,11 @@ class Validator(TrainCallback):
         self.val_data = val_data
         self.accuracy_meter = accuracy_meter
 
-    def on_epoch_end(self, session, lossMeter): 
+    def run(self, session, lossMeter=None):
         self.accuracy_meter.reset()
         valLoss = sess.LossMeter()
         with sess.EvalModel(session.model):
-            for input, label, *_ in tqdm(self.val_data, desc="Validating", leave=False):
+            for input, label, *_ in tqdm(self.val_data, desc="Validating", leave=True):
                 label = Variable(util.to_gpu(label))
                 output = session.forward(input)
                 step_loss = session.criterion(output, label).data.tolist()[0]
@@ -80,4 +80,12 @@ class Validator(TrainCallback):
                     self.accuracy_meter.update(output, label)
         
         val_accuracy = self.accuracy_meter.accuracy() if self.accuracy_meter is not None else 0
-        print("Training Loss: %f  Validaton Loss: %f Validation Accuracy: %f" % (lossMeter.debias, valLoss.raw_avg, val_accuracy))
+
+        if lossMeter is not None:
+            print("Training Loss: %f  Validaton Loss: %f Validation Accuracy: %f" % (lossMeter.debias, valLoss.raw_avg, val_accuracy))
+        else:
+            print("Validaton Loss: %f Validation Accuracy: %f" % (valLoss.raw_avg, val_accuracy))
+          
+
+    def on_epoch_end(self, session, lossMeter): 
+        self.run(session, lossMeter)
