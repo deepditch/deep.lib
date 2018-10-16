@@ -41,15 +41,47 @@ class NHotAccuracy(_AccuracyMeter):
     def reset(self):
         self.num_correct = 0
         self.count = 0
-        self.details = [{"correct_pos":0, "correct_neg":0, "false_pos":0, "false_neg":0} for i in range(self.num_classes)]
+        self.confusion = [{"correct_pos":0, "correct_neg":0, "false_pos":0, "false_neg":0} for i in range(self.num_classes)]
     
     def accuracy(self): 
         return self.num_correct / self.count
 
+    def precision(self):
+        precision = []
+        for conf in self.confusion:
+            if(conf["correct_pos"] == 0):
+                precision.append(0)
+            else:
+                precision.append(conf["correct_pos"] / (conf["correct_pos"] + conf["false_pos"]))
+
+        return precision
+
+    def recall(self):
+        recall = []
+        for conf in self.confusion:
+            if(conf["correct_pos"] == 0):
+                recall.append(0)
+            else:
+                recall.append(conf["correct_pos"] / (conf["correct_pos"] + conf["false_neg"]))
+
+        return recall
+
+    def FMeasure(self):
+        f = []
+        precision = self.precision()
+        recall = self.recall()
+        for r, p in zip(recall, precision):
+            if r == 0 or p == 0:
+                f.append(0)
+            else:
+                f.append(2 * (p * r) / (p + r))
+
+        return f
+
     def update_from_numpy(self, preds, labels):
         self.count += labels.shape[0] * self.num_classes
         self.num_correct += np.sum(preds == labels)
-        for pred, label, detail in zip(zip(*preds), zip(*labels), self.details):
+        for pred, label, detail in zip(zip(*preds), zip(*labels), self.confusion):
             detail["correct_pos"] += np.sum([p and l for p, l in zip(pred, label)])
             detail["correct_neg"] += np.sum([not p and not l for p, l in zip(pred, label)])
             detail["false_pos"] += np.sum([p and not l for p, l in zip(pred, label)])
@@ -68,14 +100,15 @@ class Validator(TrainCallback):
         self.accuracy_meter = accuracy_meter
 
     def run(self, session, lossMeter=None):
-        self.accuracy_meter.reset()
+        if self.accuracy_meter is not None:
+            self.accuracy_meter.reset()
         valLoss = sess.LossMeter()
         with sess.EvalModel(session.model):
             for input, label, *_ in tqdm(self.val_data, desc="Validating", leave=True):
-                label = Variable(util.to_gpu(label))
                 output = session.forward(input)
-                step_loss = session.criterion(output, label).data.tolist()[0]
-                valLoss.update(step_loss, label.shape[0])
+                step_loss = session.criterion(output, {
+                    key: Variable(util.to_gpu(value)) for key, value in label.items()}).data.tolist()[0]
+                valLoss.update(step_loss, input.shape[0])
                 if self.accuracy_meter is not None:        
                     self.accuracy_meter.update(output, label)
         

@@ -182,13 +182,17 @@ class GeometricTransform(Transform):
             return y
 
         for i, label in enumerate(y):
-            data, data_type = label
+            data, data_type, name = label
+
+            if(data_type == md.LabelType.CATEGORY):
+                y[i] = (np.array(data), data_type, name)
+
             if(data_type == md.LabelType.BOUNDING_BOX):
                 r,c,*_ = x.shape
                 boxes = util.partition(data, 4) # Partition into array of bounding boxes
                 masks = [center_to_mask(bb, x) for bb in boxes]  # Create masks from bounding boxes
                 trfms = [self.transform_x(mask) for mask in masks]  # Transform masks
-                y[i] = (np.concatenate([mask_to_center(t) for t in trfms]), data_type) # Convert masks back into bounding boxes, save result
+                y[i] = (np.concatenate([mask_to_center(t) for t in trfms]), data_type, name) # Convert masks back into bounding boxes, save result
         
         return y
 

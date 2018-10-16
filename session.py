@@ -107,13 +107,13 @@ class Session():
             param_group['lr'] = lr
 
     def forward(self, input):
-        input = Variable(util.to_gpu(input))
-        return self.model(input)
+        return self.model(Variable(util.to_gpu(input)))
 
     def step(self, input, label):    
-        self.optimizer.zero_grad()                                  # Clear past gradent                                         
-        outputs = self.forward(input)                               # Forward pass
-        loss = self.criterion(outputs, Variable(util.to_gpu(label)))     # Calculate loss
+        self.optimizer.zero_grad()                                  # Clear past gradient                                         
+        outputs = self.forward(input)                                   # Forward pass                                            
+        loss = self.criterion(outputs, {
+            key: Variable(util.to_gpu(value)) for key, value in label.items()})     # Calculate loss
         loss.backward()                                             # Calculate new gradient
         self.optimizer.step()                                       # Update model parameters
         return loss.data.tolist()[0]                                # Return loss value
@@ -130,7 +130,7 @@ class Session():
                 if not self.running: break
                 for cb in schedule.callbacks: cb.on_batch_begin(self)
                 step_loss = self.step(input, label)         
-                lossMeter.update(step_loss, label.shape[0])
+                lossMeter.update(step_loss, input.shape[0])
                 for cb in schedule.callbacks: cb.on_batch_end(self, lossMeter)
             for cb in schedule.callbacks: cb.on_epoch_end(self, lossMeter)      
         for cb in schedule.callbacks: cb.on_train_end(self)   
