@@ -89,7 +89,7 @@ class NHotAccuracy(_AccuracyMeter):
 
     def update(self, outputs, labels):
         preds = torch.clamp(torch.round(util.to_cpu(outputs).data), 0, 1).numpy().astype(int)
-        labels = util.to_cpu(labels).data.numpy().astype(int)
+        labels = labels.numpy().astype(int)
 
         self.update_from_numpy(preds, labels)       
 
@@ -107,7 +107,8 @@ class Validator(TrainCallback):
             for input, label, *_ in tqdm(self.val_data, desc="Validating", leave=True):
                 output = session.forward(input)
                 step_loss = session.criterion(output, {
-                    key: Variable(util.to_gpu(value)) for key, value in label.items()}).data.tolist()[0]
+                    key: Variable(util.to_gpu(value)) for key, value in label.items()}).data.tolist()[0] \
+                    if isinstance(label, dict) else session.criterion(output, Variable(util.to_gpu(label))).data.tolist()[0]
                 valLoss.update(step_loss, input.shape[0])
                 if self.accuracy_meter is not None:        
                     self.accuracy_meter.update(output, label)
