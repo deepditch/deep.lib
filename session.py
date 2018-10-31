@@ -113,7 +113,7 @@ class Session():
         self.optimizer.zero_grad()                                  # Clear past gradient                                         
         outputs = self.forward(input)                                   # Forward pass                                            
         loss = self.criterion(outputs, {
-            key: Variable(util.to_gpu(value)) for key, value in label.items()}) \
+            key: Variable(value) for key, value in label.items()}) \
             if isinstance(label, dict) else self.criterion(outputs, Variable(util.to_gpu(label)))
         loss.backward()                                             # Calculate new gradient
         self.optimizer.step()                                       # Update model parameters

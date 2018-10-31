@@ -107,11 +107,11 @@ class Validator(TrainCallback):
             for input, label, *_ in tqdm(self.val_data, desc="Validating", leave=True):
                 output = session.forward(input)
                 step_loss = session.criterion(output, {
-                    key: Variable(util.to_gpu(value)) for key, value in label.items()}).data.tolist()[0] \
+                    key: Variable(value) for key, value in label.items()}).data.tolist()[0] \
                     if isinstance(label, dict) else session.criterion(output, Variable(util.to_gpu(label))).data.tolist()[0]
                 valLoss.update(step_loss, input.shape[0])
                 if self.accuracy_meter is not None:        
-                    self.accuracy_meter.update(output, label)
+                    self.accuracy_meter.update(output)
         
         val_accuracy = self.accuracy_meter.accuracy() if self.accuracy_meter is not None else 0
 
