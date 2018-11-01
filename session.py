@@ -106,6 +106,12 @@ class Session():
         for param_group, lr in zip(self.optimizer.param_groups, lrs):
             param_group['lr'] = lr
 
+    def set_mom(self, mom):
+        if 'betas' in self.optimizer.param_groups[0]:
+            for pg in self.optimizer.param_groups: pg['betas'] = (mom, pg['betas'][1])
+        else:
+            for pg in self.optimizer.param_groups: pg['momentum'] = mom
+
     def forward(self, input):
         return self.model(Variable(util.to_gpu(input)))
 
