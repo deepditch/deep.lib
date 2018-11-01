@@ -79,7 +79,7 @@ class _LRScheduler(TrainCallback):
         if iteration is not None:
             self.iteration = iteration    
         self.session.set_lr(self.get_lr())
-        if self.should_get_mom()
+        if self.should_get_mom():
             self.session.set_mom(self.get_mom())
         self.iteration += 1
 
