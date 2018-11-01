@@ -26,6 +26,8 @@ class _LRScheduler(TrainCallback):
 
         raise NotImplementedError 
 
+    def should_get_mom(self): return False
+
     def get_mom(self): pass
 
     def sub_reset(self): 
@@ -77,7 +79,8 @@ class _LRScheduler(TrainCallback):
         if iteration is not None:
             self.iteration = iteration    
         self.session.set_lr(self.get_lr())
-        self.session.set_mom(self.get_mom())
+        if self.should_get_mom()
+            self.session.set_mom(self.get_mom())
         self.iteration += 1
 
     def plot(self, iterations=None):
