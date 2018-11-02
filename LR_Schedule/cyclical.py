@@ -34,7 +34,7 @@ class Cyclical(_OnBatchLRScheduler):
 
         return res
 
-    def should_get_mom(self): return self.moms is not None
+    def should_get_mom(self): return False
 
     def get_mom(self):
         cut_pt = self.cycle_len//self.cut_div
