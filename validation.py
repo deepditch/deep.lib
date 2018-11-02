@@ -89,7 +89,7 @@ class NHotAccuracy(_AccuracyMeter):
 
     def update(self, outputs, labels):
         preds = torch.clamp(torch.round(util.to_cpu(outputs).data), 0, 1).numpy().astype(int)
-        labels = labels.numpy().astype(int)
+        labels = util.to_cpu(labels).data.numpy().astype(int)
 
         self.update_from_numpy(preds, labels)       
 
