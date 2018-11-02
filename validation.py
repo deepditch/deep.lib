@@ -113,7 +113,7 @@ class Validator(TrainCallback):
                     self.accuracy_meter.update(output, label)
         
         val_accuracy = self.accuracy_meter.accuracy() if self.accuracy_meter is not None else 0
-        
+
         if lossMeter is not None:
             print("Training Loss: %f  Validaton Loss: %f Validation Accuracy: %f" % (lossMeter.debias, valLoss.raw_avg, val_accuracy))
         else:
