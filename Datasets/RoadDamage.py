@@ -7,7 +7,7 @@ from pathlib import Path
 from Transforms.ImageTransforms import *
 
 def RoadDamageDataset(data_path, imsize=224, batch_size=8, partitions={'train': .85, 'valid': .15}):
-    DATA_PATH = Path('C:/fastai/courses/dl2/data/road_damage_dataset')
+    DATA_PATH = Path(data_path)
     MULTICLASS_CSV_PATH = DATA_PATH/'mc.csv'
     MULTIBB_CSV_PATH = DATA_PATH/'bb.csv'
     files, mcs = ImageData.parse_csv_data(MULTICLASS_CSV_PATH)

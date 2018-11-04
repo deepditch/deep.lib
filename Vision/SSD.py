@@ -137,7 +137,7 @@ def map_label_to_ground_truth(raw_label_bbs, raw_label_classes, anchors, grids, 
     
     if log: print("gt_classes: ", gt_classes)
     
-    matches = gt_overlap < 0.3
+    matches = gt_overlap < 0.2
     
     if log: print("matches: ", matches)
     
