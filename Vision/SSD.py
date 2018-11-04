@@ -63,21 +63,20 @@ def format_label(bbs, classes, imsize, log=False):
     if log: print("Output"); print("bbs: ", bbs[keep_idxs]); print("classes: ", classes[keep_idxs])
     return bbs[keep_idxs], classes[keep_idxs]
 
-
 """ 
 Maps bounding box outputs to bounding boxes. 
 The model's bounding box outputs are not bounding boxes and instead represent changes to the anchor boxes.  
 """
-def map_bb_outputs_to_pred_bbs(outputs, anchors, grid_sizes, log=False):
-    if log: print("map_bb_outputs_to_pred_bbs"); print("outputs :", outputs); print("anchors :", anchors)
+def map_bb_outputs_to_pred_bbs(outputs, anchors, grids, log=False):
+    if log: print("map_bb_outputs_to_pred_bbs"); print("outputs :", outputs); print("anchors :", anchors); print("grids :", grids[:,3])
     
     # The first two values in the output represent a translation of the anchor box's center.
     # Grid size is the width and height of the receptive field
     # delta_center is bounded on the range (-grid_size / 2, grid_size / 2); 
     # that is, the center remains within the original receptive field. 
-    delta_center = outputs[:,:2] / 2 * util.to_gpu(grid_sizes) 
+    delta_center = outputs[:,:2] / 2 * util.to_gpu(grids[:,:2]) 
     
-    if log: print("delta_center :", delta_center); print("grid_sizes :", grid_sizes)
+    if log: print("delta_center :", delta_center)
     
     # The last two values in the output represent the width and height of the bounding box.
     # These values are interpreted as a precentage of the original anchor box's width and height.
@@ -93,35 +92,52 @@ def map_bb_outputs_to_pred_bbs(outputs, anchors, grid_sizes, log=False):
     
     return torch.cat([actn_centers, actn_wh], dim=1)
 
+def box_similarity(bbs, anchors, grids, log=False):
+    bbs = bbs.float()
+    if log: print("bbs: ", bbs); print("anchors: ", anchors); print("grids: ", grids)
+    in_grid = (bbs[:,None,0] <= grids[None,:,0] + grids[None,:,2] / 2) * \
+        (bbs[:,None,0] >= grids[None,:,0] - grids[None,:,2] / 2) * \
+        (bbs[:,None,1] <= grids[None,:,1] + grids[None,:,3] / 2) * \
+        (bbs[:,None,1] >= grids[None,:,1] - grids[None,:,3] / 2) 
 
-def map_label_to_ground_truth(raw_label_bbs, raw_label_classes, anchors, imsize, log=False):
+    if log: print("in_grid: ", in_grid)
+
+    distances = (bbs[:,None,3] - anchors[None,:,3]).abs() + (bbs[:,None,2] - anchors[None,:,2]).abs()
+
+    distances[in_grid != 1] = float("inf")
+
+    if log: print("distances: ", distances)
+    
+    return distances
+
+def map_label_to_ground_truth(raw_label_bbs, raw_label_classes, anchors, grids, imsize, log=False):
     label_bbs, label_classes = format_label(raw_label_bbs, raw_label_classes, imsize)
         
     if log: print("map_label_to_ground_truth"); print("label_bbs: ", label_bbs); print("label_classes: ", label_classes)
+
+    distances = box_similarity(label_bbs, anchors, grids)
     
-    overlaps = jaccard(label_bbs, anchors)
+    if log: print("distances: ", distances)
     
-    if log: print("overlaps: ", overlaps)
+    prior_overlap, prior_idx = distances.min(1)
     
-    prior_overlap, prior_idx = overlaps.max(1)
+    if log: print("prior_distances: ", prior_overlap); print("prior_idx: ", prior_idx)
     
-    if log: print("prior_overlap: ", prior_overlap); print("prior_idx: ", prior_idx)
+    gt_overlap, gt_idx = distances.min(0)
     
-    gt_overlap, gt_idx = overlaps.max(0)
+    if log: print("gt_distances: ", gt_overlap); print("gt_idx: ", gt_idx)
     
-    if log: print("gt_overlap: ", gt_overlap); print("gt_idx: ", gt_idx)
-    
-    gt_overlap[prior_idx] = 1.99
+    gt_overlap[prior_idx] = 0
     
     for i,o in enumerate(prior_idx): gt_idx[o] = i
         
-    if log: print("gt_overlap: ", gt_overlap); print("gt_idx: ", gt_idx)
+    if log: print("gt_distances: ", gt_overlap); print("gt_idx: ", gt_idx)
         
     gt_classes = label_classes[gt_idx]
     
     if log: print("gt_classes: ", gt_classes)
     
-    matches = gt_overlap > 0.4
+    matches = gt_overlap < 0.3
     
     if log: print("matches: ", matches)
     
@@ -139,18 +155,18 @@ def map_label_to_ground_truth(raw_label_bbs, raw_label_classes, anchors, imsize,
 
 
 class SSDLoss():
-    def __init__(self, anchors, grid_sizes, num_classes, imsize):
+    def __init__(self, anchors, grids, num_classes, imsize):
         self.anchors = anchors
-        self.grid_sizes = grid_sizes
+        self.grids = grids
         self.num_classes = num_classes
         self.imsize = imsize
         self.loss_f = FocalLoss(num_classes)
 
     """ ssd loss for a single example """
     def single_example_loss(self, pred_classes, bb_outputs, label_classes, label_bbs):      
-        gt_bbs, gt_classes, matching_idxs = map_label_to_ground_truth(label_bbs, label_classes, self.anchors, self.imsize)
+        gt_bbs, gt_classes, matching_idxs = map_label_to_ground_truth(label_bbs, label_classes, self.anchors, self.grids, self.imsize, log=False)
         
-        pred_bbs = map_bb_outputs_to_pred_bbs(bb_outputs, self.anchors, self.grid_sizes)
+        pred_bbs = map_bb_outputs_to_pred_bbs(bb_outputs, self.anchors, self.grids)
         
         loc_loss = ((pred_bbs[matching_idxs].float() - gt_bbs[matching_idxs].float()).abs()).mean()
         
@@ -225,8 +241,8 @@ def non_maximum_supression(boxes, scores, overlap=0.5, top_k=100):
     return keep, count
 
 
-def make_output(pred_classes, bb_outputs, anchors, grid_sizes, log=False):
-    pred_bbs = torch_center_to_corners(map_bb_outputs_to_pred_bbs(bb_outputs, anchors, grid_sizes))
+def make_output(pred_classes, bb_outputs, anchors, grids, log=False):
+    pred_bbs = torch_center_to_corners(map_bb_outputs_to_pred_bbs(bb_outputs, anchors, grids))
     
     if log: print("pred_bbs: ", pred_bbs)
         
@@ -293,10 +309,10 @@ def make_output(pred_classes, bb_outputs, anchors, grid_sizes, log=False):
 
 
 class JaccardAccuracy(_AccuracyMeter):
-    def __init__(self, anchors, grid_sizes, imsize):
+    def __init__(self, anchors, grids, imsize):
         self.reset()
         self.anchors = anchors
-        self.grid_sizes = grid_sizes
+        self.grids = grids
         self.imsize = imsize
         
     def reset(self):
@@ -313,7 +329,7 @@ class JaccardAccuracy(_AccuracyMeter):
               
             label_bbs, label_classes = format_label(label['BB'][i], label['CAT'][i], self.imsize)    
             label_bbs, label_classes = label_bbs.data.cpu(), label_classes.data.cpu()
-            nms_classes, nms_conf, nms_bbs = make_output(pred_classes_i, bb_outputs_i, self.anchors, self.grid_sizes)
+            nms_classes, nms_conf, nms_bbs = make_output(pred_classes_i, bb_outputs_i, self.anchors, self.grids)
             nms_classes, nms_conf, nms_bbs = nms_classes.cpu(), nms_conf.cpu(), torch_corners_to_center(nms_bbs.cpu())
             
             if log: print("Ground Truth Classes: ", label_classes); print("Ground Truth Bounding Boxes: ", label_bbs)
