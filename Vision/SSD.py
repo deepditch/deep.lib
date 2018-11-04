@@ -163,14 +163,45 @@ class SSDLoss():
         self.loss_f = FocalLoss(num_classes)
 
     """ ssd loss for a single example """
-    def single_example_loss(self, pred_classes, bb_outputs, label_classes, label_bbs):      
+    def single_example_loss(self, pred_classes, bb_outputs, label_classes, label_bbs, log=False):      
         gt_bbs, gt_classes, matching_idxs = map_label_to_ground_truth(label_bbs, label_classes, self.anchors, self.grids, self.imsize, log=False)
         
+        if(log): print("gt_classes: ", gt_classes); print("pred_classes: ", pred_classes)
+
         pred_bbs = map_bb_outputs_to_pred_bbs(bb_outputs, self.anchors, self.grids)
         
         loc_loss = ((pred_bbs[matching_idxs].float() - gt_bbs[matching_idxs].float()).abs()).mean()
+
+        matches = (gt_classes != 0).cuda()
+
+        if(log): print("positive matches: ", matches)
         
-        clas_loss = self.loss_f(pred_classes, gt_classes)
+        num_positive_examples = matches.sum().int()
+        num_negatives_to_keep = (num_positive_examples * 3).int().data[0]
+
+        if(log): print("num_negatives_to_keep: ", num_negatives_to_keep)
+
+        max_conf, max_conf_idxs = pred_classes[:,1:].max(1)
+
+        if(log): print("Max confidence: ", max_conf)
+
+        max_conf[matches] = 0
+
+        if(log): print("Max confidence of non matches: ", max_conf)
+
+        _, keep_idx = max_conf.topk(num_negatives_to_keep)
+
+        if(log): print("Negative indexes to keep: ", keep_idx)
+
+        matches[keep_idx] = 1
+
+        if(log): print("Mask of all kept examples: ", matches)
+
+        if(log): print(pred_classes[matches.unsqueeze(1).expand_as(pred_classes)].view(-1,self.num_classes+1))
+
+        if(log): print(gt_classes[matches.cpu()])
+        
+        clas_loss = self.loss_f(pred_classes[matches.unsqueeze(1).expand_as(pred_classes)].view(-1,self.num_classes+1), gt_classes[matches.cpu()])
         
         return loc_loss, clas_loss
 
