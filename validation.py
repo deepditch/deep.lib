@@ -117,7 +117,7 @@ class Validator(TrainCallback):
         
         val_accuracy = self.accuracy_meter.accuracy() if self.accuracy_meter is not None else 0
         
-        if saveBest and val_accuracy > self.best_accuracy:
+        if self.save_best and val_accuracy > self.best_accuracy:
             self.best_accuracy = val_accuracy
             session.save(f'best-{time.strftime("%Y%m%d-%H%M%S")}')
 
