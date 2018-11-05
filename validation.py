@@ -8,6 +8,7 @@ from torch.autograd import Variable
 import numpy as np
 from callbacks import TrainCallback
 import util
+import time
 
 class _AccuracyMeter:
     def accuracy(self): raise NotImplementedError
@@ -95,9 +96,11 @@ class NHotAccuracy(_AccuracyMeter):
 
 
 class Validator(TrainCallback):
-    def __init__(self, val_data, accuracy_meter=None):
+    def __init__(self, val_data, accuracy_meter=None, save_best=False):
         self.val_data = val_data
         self.accuracy_meter = accuracy_meter
+        self.best_accuracy = 0
+        self.save_best = save_best
 
     def run(self, session, lossMeter=None):
         if self.accuracy_meter is not None:
@@ -113,6 +116,10 @@ class Validator(TrainCallback):
                     self.accuracy_meter.update(output, label)
         
         val_accuracy = self.accuracy_meter.accuracy() if self.accuracy_meter is not None else 0
+        
+        if saveBest and val_accuracy > self.best_accuracy:
+            self.best_accuracy = val_accuracy
+            session.save(f'best-{time.strftime("%Y%m%d-%H%M%S")}')
 
         if lossMeter is not None:
             print("Training Loss: %f  Validaton Loss: %f Validation Accuracy: %f" % (lossMeter.debias, valLoss.raw_avg, val_accuracy))

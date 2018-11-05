@@ -413,6 +413,7 @@ class JaccardAccuracy(_AccuracyMeter):
                                      
         
     def accuracy(self):
-        precision = self.num_true_positives / (self.num_true_positives + self.num_false_positives) if self.num_true_positives != 0 else 0
-        recall = self.num_true_positives / (self.num_true_positives + self.num_false_negatives) if self.num_true_positives != 0 else 0
-        return 2 * (precision * recall / (precision + recall)) if self.num_true_positives != 0 else 0
+        if self.num_true_positives < 1: return 0
+        precision = self.num_true_positives / (self.num_true_positives + self.num_false_positives)
+        recall = self.num_true_positives / (self.num_true_positives + self.num_false_negatives) 
+        return 2 * (precision * recall / (precision + recall))
