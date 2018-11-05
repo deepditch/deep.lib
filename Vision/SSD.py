@@ -7,6 +7,7 @@ from torch.autograd import Variable
 from validation import _AccuracyMeter
 import util
 import numpy as np
+import copy
 
 def torch_center_to_corners(bb): 
     x1 = bb[:,0] - bb[:,2] / 2
@@ -95,20 +96,25 @@ def map_bb_outputs_to_pred_bbs(outputs, anchors, grids, log=False):
 def box_similarity(bbs, anchors, grids, log=False):
     bbs = bbs.float()
     if log: print("bbs: ", bbs); print("anchors: ", anchors); print("grids: ", grids)
-    in_grid = (bbs[:,None,0] <= grids[None,:,0] + grids[None,:,2] / 2) * \
+    in_grid = ((bbs[:,None,0] <= grids[None,:,0] + grids[None,:,2] / 2) * \
         (bbs[:,None,0] >= grids[None,:,0] - grids[None,:,2] / 2) * \
         (bbs[:,None,1] <= grids[None,:,1] + grids[None,:,3] / 2) * \
-        (bbs[:,None,1] >= grids[None,:,1] - grids[None,:,3] / 2) 
+        (bbs[:,None,1] >= grids[None,:,1] - grids[None,:,3] / 2)).data
 
     if log: print("in_grid: ", in_grid)
 
-    distances = (bbs[:,None,3] - anchors[None,:,3]).abs() + (bbs[:,None,2] - anchors[None,:,2]).abs()
+    stacked_bbs = torch.cat([torch.zeros((len(bbs), 2)), bbs[:,2:].data], dim=1)
+    stacked_anchors = torch.cat([torch.zeros((len(anchors), 2)), anchors[:,2:].data], dim=1)
 
-    distances[in_grid != 1] = float("inf")
+    similarities = jaccard(stacked_bbs, stacked_anchors).float()
 
-    if log: print("distances: ", distances)
+    if log: print("similarities: ", similarities)
+
+    similarities[in_grid != 1] = 0
+
+    if log: print("similarities: ", similarities)
     
-    return distances
+    return similarities
 
 def map_label_to_ground_truth(raw_label_bbs, raw_label_classes, anchors, grids, imsize, log=False):
     label_bbs, label_classes = format_label(raw_label_bbs, raw_label_classes, imsize)
@@ -119,15 +125,15 @@ def map_label_to_ground_truth(raw_label_bbs, raw_label_classes, anchors, grids, 
     
     if log: print("distances: ", distances)
     
-    prior_overlap, prior_idx = distances.min(1)
+    prior_overlap, prior_idx = distances.max(1)
     
     if log: print("prior_distances: ", prior_overlap); print("prior_idx: ", prior_idx)
     
-    gt_overlap, gt_idx = distances.min(0)
+    gt_overlap, gt_idx = distances.max(0)
     
     if log: print("gt_distances: ", gt_overlap); print("gt_idx: ", gt_idx)
     
-    gt_overlap[prior_idx] = 0
+    gt_overlap[prior_idx] = 1.99
     
     for i,o in enumerate(prior_idx): gt_idx[o] = i
         
@@ -137,7 +143,7 @@ def map_label_to_ground_truth(raw_label_bbs, raw_label_classes, anchors, grids, 
     
     if log: print("gt_classes: ", gt_classes)
     
-    matches = gt_overlap < 0.2
+    matches = gt_overlap > 0.6
     
     if log: print("matches: ", matches)
     
