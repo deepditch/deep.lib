@@ -70,19 +70,19 @@ The model's bounding box outputs are not bounding boxes and instead represent ch
 """
 def map_bb_outputs_to_pred_bbs(outputs, anchors, grids, log=False):
     if log: print("map_bb_outputs_to_pred_bbs"); print("outputs :", outputs); print("anchors :", anchors); print("grids :", grids[:,3])
-    
+        
     # The first two values in the output represent a translation of the anchor box's center.
     # Grid size is the width and height of the receptive field
     # delta_center is bounded on the range (-grid_size / 2, grid_size / 2); 
     # that is, the center remains within the original receptive field. 
-    delta_center = outputs[:,:2] / 2 * util.to_gpu(grids[:,:2]) 
+    delta_center = outputs[:,:2]/2 * util.to_gpu(grids[:,:2]) 
     
     if log: print("delta_center :", delta_center)
     
     # The last two values in the output represent the width and height of the bounding box.
     # These values are interpreted as a precentage of the original anchor box's width and height.
     # percent_sizes is on the range (.5, 1.5). We add 1 since actn_bbs is on the range (-1, 1)
-    percent_sizes = outputs[:,2:] / 2 + 1 
+    percent_sizes = outputs[:,2:] + 1 
     
     if log: print("percent_sizes :", percent_sizes);
     
@@ -176,38 +176,9 @@ class SSDLoss():
 
         pred_bbs = map_bb_outputs_to_pred_bbs(bb_outputs, self.anchors, self.grids)
         
-        loc_loss = ((pred_bbs[matching_idxs].float() - gt_bbs[matching_idxs].float()).abs()).mean()
-
-        matches = (gt_classes != 0).cuda()
-
-        if(log): print("positive matches: ", matches)
+        loc_loss = F.smooth_l1_loss(pred_bbs[matching_idxs].float(), gt_bbs[matching_idxs].float())
         
-        num_positive_examples = matches.sum().int()
-        num_negatives_to_keep = (num_positive_examples * 3).int().data[0]
-
-        if(log): print("num_negatives_to_keep: ", num_negatives_to_keep)
-
-        max_conf, max_conf_idxs = pred_classes[:,1:].max(1)
-
-        if(log): print("Max confidence: ", max_conf)
-
-        max_conf[matches] = 0
-
-        if(log): print("Max confidence of non matches: ", max_conf)
-
-        _, keep_idx = max_conf.topk(num_negatives_to_keep)
-
-        if(log): print("Negative indexes to keep: ", keep_idx)
-
-        matches[keep_idx] = 1
-
-        if(log): print("Mask of all kept examples: ", matches)
-
-        if(log): print(pred_classes[matches.unsqueeze(1).expand_as(pred_classes)].view(-1,self.num_classes+1))
-
-        if(log): print(gt_classes[matches.cpu()])
-        
-        clas_loss = self.loss_f(pred_classes[matches.unsqueeze(1).expand_as(pred_classes)].view(-1,self.num_classes+1), gt_classes[matches.cpu()])
+        clas_loss = self.loss_f(pred_classes, gt_classes)
         
         return loc_loss, clas_loss
 
@@ -416,4 +387,5 @@ class JaccardAccuracy(_AccuracyMeter):
         if self.num_true_positives < 1: return 0
         precision = self.num_true_positives / (self.num_true_positives + self.num_false_positives)
         recall = self.num_true_positives / (self.num_true_positives + self.num_false_negatives) 
+        print(f"Recall: {recall} Precision: {precision}")
         return 2 * (precision * recall / (precision + recall))

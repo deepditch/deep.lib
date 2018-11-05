@@ -101,8 +101,10 @@ class Validator(TrainCallback):
         self.accuracy_meter = accuracy_meter
         self.best_accuracy = 0
         self.save_best = save_best
+        self.batch = 0
 
     def run(self, session, lossMeter=None):
+        self.batch += 1
         if self.accuracy_meter is not None:
             self.accuracy_meter.reset()
         valLoss = sess.LossMeter()
@@ -119,12 +121,12 @@ class Validator(TrainCallback):
         
         if self.save_best and val_accuracy > self.best_accuracy:
             self.best_accuracy = val_accuracy
-            session.save(f'best-{time.strftime("%Y%m%d-%H%M%S")}')
+            session.save(f'best-{self.batch}-{self.best_accuracy}')
 
         if lossMeter is not None:
-            print("Training Loss: %f  Validaton Loss: %f Validation Accuracy: %f" % (lossMeter.debias, valLoss.raw_avg, val_accuracy))
+            print(f"Training Loss: {lossMeter.debias}  Validaton Loss: {valLoss.raw_avg} Validation Accuracy: {val_accuracy}")
         else:
-            print("Validaton Loss: %f Validation Accuracy: %f" % (valLoss.raw_avg, val_accuracy))
+            print(f"Validaton Loss: {valLoss.raw_avg} Validation Accuracy: {val_accuracy}")
           
 
     def on_epoch_end(self, session, lossMeter): 

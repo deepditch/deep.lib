@@ -33,7 +33,7 @@ def RoadDamageDataset(data_path, imsize=224, batch_size=8, partitions={'train': 
     labels = [md.StructuredLabel([(cat, md.LabelType.CATEGORY, "CAT"), (bb, md.LabelType.BOUNDING_BOX, "BB")]) for bb, cat in zip(mbbs, mcs)]
 
     train_tfms = TransformList([
-        RandomScale(imsize, 1.1),
+        RandomScale(imsize, 1.17),
         RandomCrop(imsize),
         RandomHorizontalFlip(),
         transforms.ToTensor(),
@@ -54,7 +54,7 @@ def RoadDamageDataset(data_path, imsize=224, batch_size=8, partitions={'train': 
     i_dict = md.make_partition_indices(len(labels), partitions)
 
     idx, test_files = ImageData.parse_csv_data(DATA_PATH/'test_data.csv')
-    test_files = [DATA_PATH/file for file in test_files]
+    test_files = [DATA_PATH/file.replace("\\", "/") for file in test_files]
 
     datasets = {
         'train': ImageData.ImageDataset(util.mask(files, i_dict['train']), util.mask(labels, i_dict['train']), train_tfms),

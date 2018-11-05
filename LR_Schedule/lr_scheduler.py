@@ -83,7 +83,7 @@ class _LRScheduler(TrainCallback):
             self.session.set_mom(self.get_mom())
         self.iteration += 1
 
-    def plot(self, iterations=None):
+    def plot(self, iterations=None, lrs=[1]):
         '''Plots learning rate against iterations
         
         Keyword Arguments:
@@ -93,7 +93,7 @@ class _LRScheduler(TrainCallback):
         cp = copy.deepcopy(self)
         if iterations is None: iterations = cp.iteration
         cp.reset()
-        if cp.base_lrs is None: cp.base_lrs = [1]
+        if cp.base_lrs is None: cp.base_lrs = lrs
 
         lrs = []
         moms = []
