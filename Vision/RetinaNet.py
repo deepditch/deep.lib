@@ -6,6 +6,7 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 import torch.utils.model_zoo as model_zoo
 from torchvision.models.resnet import BasicBlock, Bottleneck, ResNet
+import torchvision.models as models
 
 def init_conv_weights(layer, weights_std=0.01, bias=0):
     '''
@@ -36,167 +37,20 @@ def conv3x3(in_channels, out_channels, **kwargs):
     return layer
 
 
-class BasicBlockFeatures(BasicBlock):
-    '''
-    BasicBlock that returns its last conv layer features.
-    '''
-
-    def forward(self, x):
-
-        if isinstance(x, tuple):
-            x = x[0]
-
-        residual = x
-
-        out = self.conv1(x)
-        out = self.bn1(out)
-        out = self.relu(out)
-
-        out = self.conv2(out)
-        conv2_rep = out
-        out = self.bn2(out)
-
-        if self.downsample is not None:
-            residual = self.downsample(x)
-
-        out += residual
-        out = self.relu(out)
-
-        return out, conv2_rep
-
-
-class BottleneckFeatures(Bottleneck):
-    '''
-    Bottleneck that returns its last conv layer features.
-    '''
-
-    def forward(self, x):
-
-        if isinstance(x, tuple):
-            x = x[0]
-
-        residual = x
-
-        out = self.conv1(x)
-        out = self.bn1(out)
-        out = self.relu(out)
-
-        out = self.conv2(out)
-        out = self.bn2(out)
-        out = self.relu(out)
-
-        out = self.conv3(out)
-        conv3_rep = out
-        out = self.bn3(out)
-
-        if self.downsample is not None:
-            residual = self.downsample(x)
-
-        out += residual
-        out = self.relu(out)
-
-        return out, conv3_rep
-
-
-class ResNetFeatures(ResNet):
-    '''
-    A ResNet that returns features instead of classification.
-    '''
-
-    def forward(self, x):
-
-        x = self.conv1(x)
-        x = self.bn1(x)
-        x = self.relu(x)
-        x = self.maxpool(x)
-
-        x, c2 = self.layer1(x)
-        x, c3 = self.layer2(x)
-        x, c4 = self.layer3(x)
-        x, c5 = self.layer4(x)
-
-        return c2, c3, c4, c5
-
-
-model_urls = {
-    'resnet18': 'https://download.pytorch.org/models/resnet18-5c106cde.pth',
-    'resnet34': 'https://download.pytorch.org/models/resnet34-333f7ec4.pth',
-    'resnet50': 'https://download.pytorch.org/models/resnet50-19c8e357.pth',
-    'resnet101': 'https://download.pytorch.org/models/resnet101-5d3b4d8f.pth',
-    'resnet152': 'https://download.pytorch.org/models/resnet152-b121ed2d.pth',
-}
-
-
-def resnet18_features(pretrained=False, **kwargs):
-    '''Constructs a ResNet-18 model.
-    Args:
-        pretrained (bool): If True, returns a model pre-trained on ImageNet
-    '''
-    model = ResNetFeatures(BasicBlockFeatures, [2, 2, 2, 2], **kwargs)
-
-    if pretrained:
-        model.load_state_dict(model_zoo.load_url(model_urls['resnet18']))
-
-    return model
-
-
-def resnet34_features(pretrained=False, **kwargs):
-    '''Constructs a ResNet-34 model.
-    Args:
-        pretrained (bool): If True, returns a model pre-trained on ImageNet
-    '''
-    model = ResNetFeatures(BasicBlockFeatures, [3, 4, 6, 3], **kwargs)
-
-    if pretrained:
-        model.load_state_dict(model_zoo.load_url(model_urls['resnet34']))
-
-    return model
-
-
-def resnet50_features(pretrained=False, **kwargs):
-    '''Constructs a ResNet-50 model.
-    Args:
-        pretrained (bool): If True, returns a model pre-trained on ImageNet
-    '''
-    model = ResNetFeatures(BottleneckFeatures, [3, 4, 6, 3], **kwargs)
-
-    if pretrained:
-        model.load_state_dict(model_zoo.load_url(model_urls['resnet50']))
-
-    return model
-
-
-def resnet101_features(pretrained=False, **kwargs):
-    '''Constructs a ResNet-101 model.
-    Args:
-        pretrained (bool): If True, returns a model pre-trained on ImageNet
-    '''
-    model = ResNetFeatures(BottleneckFeatures, [3, 4, 23, 3], **kwargs)
-
-    if pretrained:
-        model.load_state_dict(model_zoo.load_url(model_urls['resnet101']))
-
-    return model
-
-
-def resnet152_features(pretrained=False, **kwargs):
-    '''Constructs a ResNet-152 model.
-    Args:
-        pretrained (bool): If True, returns a model pre-trained on ImageNet
-    '''
-    model = ResNetFeatures(BottleneckFeatures, [3, 8, 36, 3], **kwargs)
-
-    if pretrained:
-        model.load_state_dict(model_zoo.load_url(model_urls['resnet152']))
-
-    return model
-
+class SaveFeatures():
+    features=None
+    def __init__(self, m): self.hook = m.register_forward_hook(self.hook_fn)
+    def hook_fn(self, module, input, output): self.features = output
+    def remove(self): self.hook.remove()
+        
 
 class FeaturePyramid(nn.Module):
-    def __init__(self, resnet, C3_size=128, C4_size=256, C5_size=512, feature_size=256):
+    def __init__(self, resnet, C3_size=256, C4_size=512, C5_size=1024, feature_size=2048):
         super().__init__()
 
         self.resnet = resnet
+        
+        self.sfs = [SaveFeatures(self.resnet[-3]), SaveFeatures(self.resnet[-2]) ]
 
         # upsample C5 to get P5 from the FPN paper
         self.P5_1           = conv1x1(C5_size, feature_size, stride=1, padding=0)
@@ -205,12 +59,12 @@ class FeaturePyramid(nn.Module):
         
         # add P5 elementwise to C4
         self.P4_1           = conv1x1(C4_size, feature_size, stride=1, padding=0)
-        self.P4_upsampled   = nn.Upsample(scale_factor=2, mode='nearest')
+        #self.P4_upsampled   = nn.Upsample(scale_factor=2, mode='nearest')
         self.P4_2           = conv3x3(feature_size, feature_size, stride=1, padding=1)
         
         # add P4 elementwise to C3
-        self.P3_1 = conv1x1(C3_size, feature_size, stride=1, padding=0)
-        self.P3_2 = conv3x3(feature_size, feature_size, stride=1, padding=1)
+        #self.P3_1 = conv1x1(C3_size, feature_size, stride=1, padding=0)
+        #self.P3_2 = conv3x3(feature_size, feature_size, stride=1, padding=1)
         
         # "P6 is obtained via a 3x3 stride-2 conv on C5"
         self.P6 = conv3x3(C5_size, feature_size, stride=2, padding=1)
@@ -221,7 +75,11 @@ class FeaturePyramid(nn.Module):
 
 
     def forward(self, x):
-        _, C3, C4, C5 = self.resnet(x)
+        C5 = self.resnet(x)
+        C4 = self.sfs[1].features
+        C3 = self.sfs[0].features
+        
+        # print(C3.shape, C4.shape, C5.shape)
 
         P5_x = self.P5_1(C5)
         P5_upsampled_x = self.P5_upsampled(P5_x)
@@ -229,7 +87,7 @@ class FeaturePyramid(nn.Module):
         
         P4_x = self.P4_1(C4)
         P4_x = P4_x + P5_upsampled_x
-        # P4_upsampled_x = self.P4_upsampled(P4_x)
+        #P4_upsampled_x = self.P4_upsampled(P4_x)
         P4_x = self.P4_2(P4_x)
 
         #P3_x = self.P3_1(C3)
@@ -240,6 +98,9 @@ class FeaturePyramid(nn.Module):
 
         P7_x = self.P7_1(P6_x)
         P7_x = self.P7_2(P7_x)
+        
+        # print(P3_x.shape, P4_x.shape, P5_x.shape, P6_x.shape, P7_x.shape)
+        
         return [P4_x, P5_x, P6_x, P7_x]
 
 
@@ -252,7 +113,9 @@ class _SubNet(nn.Module):
         self.feature_size = feature_size
 
         self.relu = nn.ReLU(inplace=True)
-        self.layers = nn.ModuleList([conv3x3(self.feature_size, self.feature_size, padding=1)] * depth)
+        self.down_sample_1 = conv3x3(self.feature_size, self.feature_size, padding=1, stride=2)
+        self.down_sample_2 = conv3x3(self.feature_size, self.feature_size, padding=1, stride=2)
+        self.layers = nn.ModuleList([conv3x3(self.feature_size, self.feature_size, padding=1)] * 2)
 
     def output_layer(self, x): raise NotImplementedError
 
@@ -262,6 +125,8 @@ class _SubNet(nn.Module):
         return x.view(bs,-1,nf//self.anchors)
 
     def forward(self, x):
+        x = self.relu(self.down_sample_1(x))
+        x = self.relu(self.down_sample_2(x))
         for layer in self.layers:
             x = self.relu(layer(x))
 
@@ -288,13 +153,16 @@ class ClassificationSubnet(_SubNet):
         
     def output_layer(self, x):
         return self.conv(x)
-
+    
 
 class RetinaNet(nn.Module):
     def __init__(self, classes, anchors):
-        super().__init__()
-
-        _resnet = resnet34_features(pretrained=True)
+        super().__init__()     
+        
+        model_ft = models.resnet50(pretrained=True)
+        layers = list(model_ft.children())[0:-2]
+        _resnet = nn.Sequential(*list(layers))
+        
         self.feature_pyramid = FeaturePyramid(_resnet)
 
         self.subnet_boxes = RegressionSubnet(classes, anchors)

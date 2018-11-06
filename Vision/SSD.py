@@ -69,20 +69,20 @@ Maps bounding box outputs to bounding boxes.
 The model's bounding box outputs are not bounding boxes and instead represent changes to the anchor boxes.  
 """
 def map_bb_outputs_to_pred_bbs(outputs, anchors, grids, log=False):
-    if log: print("map_bb_outputs_to_pred_bbs"); print("outputs :", outputs); print("anchors :", anchors); print("grids :", grids[:,3])
+    if log: print("map_bb_outputs_to_pred_bbs"); print("outputs :", outputs); print("anchors :", anchors); print("grids :", grids)
         
     # The first two values in the output represent a translation of the anchor box's center.
     # Grid size is the width and height of the receptive field
     # delta_center is bounded on the range (-grid_size, grid_size); 
     # that is, the center remains within the original receptive field. 
-    delta_center = outputs[:,:2]/2 * util.to_gpu(grids[:,:2]) 
+    delta_center = outputs[:,:2] * (util.to_gpu(grids[:,:2])/2) 
     
     if log: print("delta_center :", delta_center)
     
     # The last two values in the output represent the width and height of the bounding box.
     # These values are interpreted as a precentage of the original anchor box's width and height.
-    # percent_sizes is on the range (0, 2). We add 1 since actn_bbs is on the range (-1, 1)
-    percent_sizes = outputs[:,2:] + 1 
+    # percent_sizes is on the range (.5, 1.5). We add 1 since actn_bbs is on the range (-1, 1)
+    percent_sizes = outputs[:,2:]/2 + 1 
     
     if log: print("percent_sizes :", percent_sizes);
     
@@ -127,25 +127,25 @@ def map_label_to_ground_truth(raw_label_bbs, raw_label_classes, anchors, grids, 
     
     prior_overlap, prior_idx = distances.max(1)
     
-    if log: print("prior_distances: ", prior_overlap); print("prior_idx: ", prior_idx)
+    #if log: print("prior_distances: ", prior_overlap); print("prior_idx: ", prior_idx)
     
     gt_overlap, gt_idx = distances.max(0)
     
-    if log: print("gt_distances: ", gt_overlap); print("gt_idx: ", gt_idx)
+    #if log: print("gt_distances: ", gt_overlap); print("gt_idx: ", gt_idx)
     
     gt_overlap[prior_idx] = 1.99
     
     for i,o in enumerate(prior_idx): gt_idx[o] = i
         
-    if log: print("gt_distances: ", gt_overlap); print("gt_idx: ", gt_idx)
+    #if log: print("gt_distances: ", gt_overlap); print("gt_idx: ", gt_idx)
         
     gt_classes = label_classes[gt_idx]
     
-    if log: print("gt_classes: ", gt_classes)
+    #if log: print("gt_classes: ", gt_classes)
     
     matches = gt_overlap > 0.6
     
-    if log: print("matches: ", matches)
+    #if log: print("matches: ", matches)
     
     matching_idxs = torch.nonzero(matches)[:,0]
     
