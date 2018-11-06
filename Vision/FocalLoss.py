@@ -19,10 +19,10 @@ class FocalLoss(nn.Module):
         target = util.to_gpu(Variable(target[:,1:].contiguous())) # Ignore background and send to GPU
         pred = outputs[:,1:] # Get the models predictions (no background)
         weight = self.get_weight(pred, target)
-        return F.binary_cross_entropy_with_logits(pred, target, weight, size_average=False) / self.num_classes
+        return F.binary_cross_entropy_with_logits(pred, target, weight, size_average=False)
     
     def get_weight(self, x, t):
-        alpha, gamma = 0.25, 1
+        alpha, gamma = 0.25, 2
         p = x.sigmoid()
         pt = p * t + (1-p) * (1-t)
         w = alpha * t + (1-alpha) * (1-t)

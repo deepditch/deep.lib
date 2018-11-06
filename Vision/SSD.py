@@ -169,21 +169,17 @@ class SSDLoss():
 
     """ ssd loss for a single example """
     def single_example_loss(self, pred_classes, bb_outputs, label_classes, label_bbs, log=False):      
-        gt_bbs, gt_classes, matching_idxs = map_label_to_ground_truth(label_bbs, label_classes, self.anchors, self.grids, self.imsize, log=False)
+        gt_bbs, gt_classes, matching_idxs = map_label_to_ground_truth(label_bbs, label_classes, self.anchors, self.grids, self.imsize)
         
         if(log): print("gt_classes: ", gt_classes); print("pred_classes: ", pred_classes)
 
-<<<<<<< HEAD
-        pred_bbs = map_bb_outputs_to_pred_bbs(bb_outputs, self.anchors, self.grids, log=False)
-=======
         pred_bbs = map_bb_outputs_to_pred_bbs(bb_outputs, self.anchors, self.grids)
->>>>>>> 1cb9eb402a870b15f2f1807305a8531d7ef33a7c
         
         loc_loss = F.smooth_l1_loss(pred_bbs[matching_idxs].float(), gt_bbs[matching_idxs].float())
         
         clas_loss = self.loss_f(pred_classes, gt_classes)
         
-        return loc_loss, clas_loss
+        return loc_loss, clas_loss / max(len(matching_idxs), 1)
 
     def __call__(self, preds, target, log=False):
         total_location_loss = 0.

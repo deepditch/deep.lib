@@ -98,6 +98,12 @@ class Session():
     def unfreeze(self):
         self.freeze_to(0)
 
+    def freeze_bn(self):
+        '''Freeze BatchNorm layers.'''
+        for layer in self.model.modules():
+            if isinstance(layer, nn.BatchNorm2d):
+                layer.eval()
+
     def set_lr(self, lrs):
         lrs = util.listify(lrs, self.optimizer.param_groups)
         if len(lrs) != len(self.optimizer.param_groups):
