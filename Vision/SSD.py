@@ -70,12 +70,12 @@ The model's bounding box outputs are not bounding boxes and instead represent ch
 """
 def map_bb_outputs_to_pred_bbs(outputs, anchors, grids, log=False):
     if log: print("map_bb_outputs_to_pred_bbs"); print("outputs :", outputs); print("anchors :", anchors); print("grids :", grids[:,3])
-    
+        
     # The first two values in the output represent a translation of the anchor box's center.
     # Grid size is the width and height of the receptive field
     # delta_center is bounded on the range (-grid_size, grid_size); 
     # that is, the center remains within the original receptive field. 
-    delta_center = outputs[:,:2] * util.to_gpu(grids[:,:2]) 
+    delta_center = outputs[:,:2]/2 * util.to_gpu(grids[:,:2]) 
     
     if log: print("delta_center :", delta_center)
     
@@ -173,7 +173,11 @@ class SSDLoss():
         
         if(log): print("gt_classes: ", gt_classes); print("pred_classes: ", pred_classes)
 
+<<<<<<< HEAD
         pred_bbs = map_bb_outputs_to_pred_bbs(bb_outputs, self.anchors, self.grids, log=False)
+=======
+        pred_bbs = map_bb_outputs_to_pred_bbs(bb_outputs, self.anchors, self.grids)
+>>>>>>> 1cb9eb402a870b15f2f1807305a8531d7ef33a7c
         
         loc_loss = F.smooth_l1_loss(pred_bbs[matching_idxs].float(), gt_bbs[matching_idxs].float())
         
@@ -386,4 +390,5 @@ class JaccardAccuracy(_AccuracyMeter):
         if self.num_true_positives < 1: return 0
         precision = self.num_true_positives / (self.num_true_positives + self.num_false_positives)
         recall = self.num_true_positives / (self.num_true_positives + self.num_false_negatives) 
+        print(f"Recall: {recall} Precision: {precision}")
         return 2 * (precision * recall / (precision + recall))
