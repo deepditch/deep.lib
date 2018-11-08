@@ -25,7 +25,7 @@ class LRFindScheduler(_OnBatchLRScheduler):
         self.end_lr = util.listify(self.end_lr, session.optimizer.param_groups)
         self.multipliers = [(end_lr/base_lr)**(1/self.num_examples) for base_lr, end_lr in zip(self.base_lrs, self.end_lr)]
         self.lrs = []
-        self.best=1e9
+        self.best=40
     
     def get_lr(self):
         new_lr = [base_lr * mult ** self.iteration for base_lr, mult in zip(self.base_lrs, self.multipliers)]
@@ -34,7 +34,7 @@ class LRFindScheduler(_OnBatchLRScheduler):
 
     def on_batch_end(self, session, lossMeter):
         self.losses.append(lossMeter.debias)
-        if (math.isnan(lossMeter.debias) or lossMeter.debias > self.best*4):
+        if (math.isnan(lossMeter.debias) or lossMeter.debias > self.best*4 or lossMeter.debias is float('nan')):
             session.stop()
         if (lossMeter.debias<self.best and self.iteration>10): self.best=lossMeter.debias
 

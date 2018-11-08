@@ -69,20 +69,20 @@ Maps bounding box outputs to bounding boxes.
 The model's bounding box outputs are not bounding boxes and instead represent changes to the anchor boxes.  
 """
 def map_bb_outputs_to_pred_bbs(outputs, anchors, grids, log=False):
-    if log: print("map_bb_outputs_to_pred_bbs"); print("outputs :", outputs); print("anchors :", anchors); print("grids :", grids[:,3])
+    if log: print("map_bb_outputs_to_pred_bbs"); print("outputs :", outputs); print("anchors :", anchors); print("grids :", grids)
         
     # The first two values in the output represent a translation of the anchor box's center.
     # Grid size is the width and height of the receptive field
     # delta_center is bounded on the range (-grid_size, grid_size); 
     # that is, the center remains within the original receptive field. 
-    delta_center = outputs[:,:2]/2 * util.to_gpu(grids[:,:2]) 
+    delta_center = outputs[:,:2] * (util.to_gpu(grids[:,:2])/2) 
     
     if log: print("delta_center :", delta_center)
     
     # The last two values in the output represent the width and height of the bounding box.
     # These values are interpreted as a precentage of the original anchor box's width and height.
-    # percent_sizes is on the range (0, 2). We add 1 since actn_bbs is on the range (-1, 1)
-    percent_sizes = outputs[:,2:] + 1 
+    # percent_sizes is on the range (.5, 1.5). We add 1 since actn_bbs is on the range (-1, 1)
+    percent_sizes = outputs[:,2:]/2 + 1 
     
     if log: print("percent_sizes :", percent_sizes);
     
@@ -121,33 +121,35 @@ def map_label_to_ground_truth(raw_label_bbs, raw_label_classes, anchors, grids, 
         
     if log: print("map_label_to_ground_truth"); print("label_bbs: ", label_bbs); print("label_classes: ", label_classes)
 
-    distances = box_similarity(label_bbs, anchors, grids)
+    distances = jaccard(label_bbs, anchors)
     
     if log: print("distances: ", distances)
     
     prior_overlap, prior_idx = distances.max(1)
     
-    if log: print("prior_distances: ", prior_overlap); print("prior_idx: ", prior_idx)
+    #if log: print("prior_distances: ", prior_overlap); print("prior_idx: ", prior_idx)
     
     gt_overlap, gt_idx = distances.max(0)
     
-    if log: print("gt_distances: ", gt_overlap); print("gt_idx: ", gt_idx)
+    #if log: print("gt_distances: ", gt_overlap); print("gt_idx: ", gt_idx)
     
     gt_overlap[prior_idx] = 1.99
     
     for i,o in enumerate(prior_idx): gt_idx[o] = i
         
-    if log: print("gt_distances: ", gt_overlap); print("gt_idx: ", gt_idx)
+    #if log: print("gt_distances: ", gt_overlap); print("gt_idx: ", gt_idx)
         
     gt_classes = label_classes[gt_idx]
     
-    if log: print("gt_classes: ", gt_classes)
+    #if log: print("gt_classes: ", gt_classes)
     
-    matches = gt_overlap > 0.6
-    
-    if log: print("matches: ", matches)
+    matches = gt_overlap >= 0.5
+
+    #if log: print("matches: ", matches)
     
     matching_idxs = torch.nonzero(matches)[:,0]
+
+    cls_matches = torch.nonzero(matches + (gt_overlap < .4))[:,0]
     
     if log: print("matching_idxs: ", matching_idxs)
     
@@ -157,7 +159,7 @@ def map_label_to_ground_truth(raw_label_bbs, raw_label_classes, anchors, grids, 
     
     if log: print("gt_classes: ", gt_classes[matching_idxs]); print("gt_bbs: ", gt_bbs[matching_idxs])
    
-    return util.to_gpu(gt_bbs), gt_classes, util.to_gpu(matching_idxs)
+    return util.to_gpu(gt_bbs), gt_classes, util.to_gpu(matching_idxs), cls_matches
 
 class SSDLoss():
     def __init__(self, anchors, grids, num_classes, imsize):
@@ -169,15 +171,15 @@ class SSDLoss():
 
     """ ssd loss for a single example """
     def single_example_loss(self, pred_classes, bb_outputs, label_classes, label_bbs, log=False):      
-        gt_bbs, gt_classes, matching_idxs = map_label_to_ground_truth(label_bbs, label_classes, self.anchors, self.grids, self.imsize)
+        gt_bbs, gt_classes, matching_idxs, cls_matches = map_label_to_ground_truth(label_bbs, label_classes, self.anchors, self.grids, self.imsize)
         
         if(log): print("gt_classes: ", gt_classes); print("pred_classes: ", pred_classes)
 
         pred_bbs = map_bb_outputs_to_pred_bbs(bb_outputs, self.anchors, self.grids)
         
-        loc_loss = F.smooth_l1_loss(pred_bbs[matching_idxs].float(), gt_bbs[matching_idxs].float())
+        loc_loss = F.smooth_l1_loss(pred_bbs[matching_idxs].float(), gt_bbs[matching_idxs].float(), size_average=False)
         
-        clas_loss = self.loss_f(pred_classes, gt_classes)
+        clas_loss = self.loss_f(pred_classes[util.to_gpu(cls_matches)], gt_classes[cls_matches])
         
         return loc_loss, clas_loss / max(len(matching_idxs), 1)
 
@@ -316,16 +318,18 @@ def make_output(pred_classes, bb_outputs, anchors, grids, log=False):
 
 
 class JaccardAccuracy(_AccuracyMeter):
-    def __init__(self, anchors, grids, imsize):
-        self.reset()
+    def __init__(self, anchors, grids, imsize, num_classes):    
         self.anchors = anchors
         self.grids = grids
         self.imsize = imsize
+        self.num_classes = num_classes
+        self.reset()
         
     def reset(self):
         self.num_true_positives = 0
         self.num_false_positives = 0
         self.num_false_negatives = 0
+        self.confusion = [{"true_pos":0, "false_neg":0, "false_pos":0,} for i in range(self.num_classes)]
         
     def update(self, output, label, log=False):
         pred_classes, bb_outputs = output
@@ -372,12 +376,18 @@ class JaccardAccuracy(_AccuracyMeter):
             if log: print("Ground Truth Hits: ", label_hits)           
             if log: print("Prediction Hits: ", pred_hits) 
                 
-            self.num_true_positives += label_hits.sum()
-            
-            # self.num_correct_positives += pred_hits.sum()
+            self.num_true_positives += label_hits.sum()         
+            # self.num_true_positives += pred_hits.sum()
             
             self.num_false_negatives += (label_hits != 1).sum()
             self.num_false_positives += (pred_hits != 1).sum()
+
+            for clas, conf in enumerate(self.confusion):
+                is_label_cls = (label_classes == clas)
+                conf["true_pos"] += ((label_hits == 1) * is_label_cls).sum()
+                conf["false_neg"] += ((label_hits != 1) * is_label_cls).sum()
+                is_pred_cls = (nms_classes == clas)
+                conf["false_pos"] += ((pred_hits != 1) * is_pred_cls).sum()
             
             if log: print(f"{label_hits.sum()} true positives. {(pred_hits != 1).sum()} false positives. {(label_hits != 1).sum()} false negatives.")            
                                      
