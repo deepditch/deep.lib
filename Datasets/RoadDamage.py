@@ -38,6 +38,7 @@ def RoadDamageDataset(data_path, imsize=224, batch_size=8, partitions={'train': 
         RandomScale(imsize, 1.17),
         RandomCrop(imsize),
         RandomHorizontalFlip(),
+        RandomLighting(.05, .05),
         transforms.ToTensor(),
         transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
     ])
