@@ -259,3 +259,24 @@ class RandomHorizontalFlip(RandomTransform, GeometricTransform):
     def transform_x(self, im):
         return cv2.flip(im, 1) if self.flip else im
 
+def lighting(im, b, c):
+    """ Adjust image balance and contrast """
+    if b==0 and c==1: return im
+    mu = np.average(im)
+    return np.clip((im-mu)*c+mu+b,0.,1.).astype(np.float32)
+
+class RandomLighting(RandomTransform):
+    def __init__(self, b, c):
+        self.b,self.c = b,c
+
+    def set_state(self):
+        self.b_rand = random.random()*(self.b*2)-self.b
+        self.c_rand = random.random()*(self.c*2)-self.c
+
+    def transform_x(self, x):
+        b = self.b_rand
+        c = self.c_rand
+        c = -1/(c-1) if c<0 else c+1
+        x = lighting(x, b, c)
+        return x
+
