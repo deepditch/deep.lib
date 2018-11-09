@@ -8,7 +8,7 @@ from Transforms.ImageTransforms import *
 import pickle
 import os 
 
-def RoadDamageDataset(data_path, imsize=224, batch_size=8, partitions={'train': .85, 'valid': .15}):
+def RoadDamageDataset(data_path, imsize=224, batch_size=8, partitions={'train': .9, 'valid': .1}):
     DATA_PATH = Path(data_path)
     MULTICLASS_CSV_PATH = DATA_PATH/'mc.csv'
     MULTIBB_CSV_PATH = DATA_PATH/'bb.csv'
@@ -61,8 +61,6 @@ def RoadDamageDataset(data_path, imsize=224, batch_size=8, partitions={'train': 
     else:
         with open(DATA_PATH/'train_val_split.pickle', 'rb') as handle:
             i_dict = pickle.load(handle)
-
-    print(i_dict)
     
     idx, test_files = ImageData.parse_csv_data(DATA_PATH/'test_data.csv')
     test_files = [DATA_PATH/file.replace("\\", "/") for file in test_files]
