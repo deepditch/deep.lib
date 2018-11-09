@@ -45,7 +45,7 @@ class SaveFeatures():
         
 
 class FeaturePyramid(nn.Module):
-    def __init__(self, resnet, C3_size=128, C4_size=256, C5_size=512, feature_size=256):
+    def __init__(self, resnet, C3_size=512, C4_size=1024, C5_size=2048, feature_size=256):
         super().__init__()
 
         self.resnet = resnet
@@ -159,7 +159,7 @@ class RetinaNet(nn.Module):
     def __init__(self, classes, anchors):
         super().__init__()     
         
-        model_ft = models.resnet34(pretrained=True)
+        model_ft = models.resnet50(pretrained=True)
         layers = list(model_ft.children())[0:-2]
         _resnet = nn.Sequential(*list(layers))
         

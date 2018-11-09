@@ -5,6 +5,8 @@ import torchvision
 from torchvision import datasets, models, transforms
 from pathlib import Path
 from Transforms.ImageTransforms import *
+import pickle
+import os 
 
 def RoadDamageDataset(data_path, imsize=224, batch_size=8, partitions={'train': .85, 'valid': .15}):
     DATA_PATH = Path(data_path)
@@ -50,9 +52,17 @@ def RoadDamageDataset(data_path, imsize=224, batch_size=8, partitions={'train': 
         mean=[-0.485/0.229, -0.456/0.224, -0.406/0.255],
         std=[1/0.229, 1/0.224, 1/0.255]
     )
+    
+    if not os.path.exists(DATA_PATH/'train_val_split.pickle'):
+        i_dict = md.make_partition_indices(len(labels), partitions)
+        with open(DATA_PATH/'train_val_split.pickle', 'wb') as handle:
+            pickle.dump(i_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)  
+    else:
+        with open(DATA_PATH/'train_val_split.pickle', 'rb') as handle:
+            i_dict = pickle.load(handle)
 
-    i_dict = md.make_partition_indices(len(labels), partitions)
-
+    print(i_dict)
+    
     idx, test_files = ImageData.parse_csv_data(DATA_PATH/'test_data.csv')
     test_files = [DATA_PATH/file.replace("\\", "/") for file in test_files]
 
