@@ -20,17 +20,30 @@ def init_conv_weights(layer, weights_std=0.01, bias=0):
     return layer
 
 
+def conv1x1(in_channels, out_channels, **kwargs):
+    '''Return a 1x1 convolutional layer with RetinaNet's weight and bias initialization'''
+    layer = nn.Conv2d(in_channels, out_channels, kernel_size=1, **kwargs)
+    layer = init_conv_weights(layer)
+    return layer
+
+
+def conv3x3(in_channels, out_channels, **kwargs):
+    '''Return a 3x3 convolutional layer with RetinaNet's weight and bias initialization'''
+    layer = nn.Conv2d(in_channels, out_channels, kernel_size=3, **kwargs)
+    layer = init_conv_weights(layer)
+    return layer
+
+
 class Conv1x1(nn.Module):
     def __init__(self, in_channels, out_channels, **kwargs):
         super().__init__()
-        self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=1, **kwargs)
-        self.conv = init_conv_weights(self.conv)
-        # self.group_norm = nn.GroupNorm(32, in_channels)
-        self.dropout = nn.Dropout(0.3)
+        self.conv = conv1x1(in_channels, out_channels, **kwargs)
+        self.batch_norm = nn.BatchNorm2d(out_channels)
+        self.dropout = nn.Dropout(0.1)
 
     def forward(self, x):
         x = self.conv(x)
-        # x = self.group_norm(x)
+        x = self.batch_norm(x)
         x = self.dropout(x)
         return x
 
@@ -38,14 +51,14 @@ class Conv1x1(nn.Module):
 class Conv3x3(nn.Module):
     def __init__(self, in_channels, out_channels, **kwargs):
         super().__init__()
-        self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=3, **kwargs)   
+        self.conv = conv3x3(in_channels, out_channels, **kwargs)   
         self.conv = init_conv_weights(self.conv)
-        # self.group_norm = nn.GroupNorm(32, in_channels)
-        self.dropout = nn.Dropout(0.3)
+        self.batch_norm = nn.BatchNorm2d(out_channels)
+        self.dropout = nn.Dropout(0.1)
     
     def forward(self, x):
         x = self.conv(x)
-        # x = self.group_norm(x)
+        x = self.batch_norm(x)
         x = self.dropout(x)
         return x
 
@@ -151,7 +164,7 @@ class _SubNet(nn.Module):
 class RegressionSubnet(_SubNet):
     def __init__(self, classes, anchors, depth=4, feature_size=256):
         super().__init__(classes, anchors, depth, feature_size)
-        self.conv = Conv3x3(self.feature_size, 4 * self.anchors, padding=1)
+        self.conv = conv3x3(self.feature_size, 4 * self.anchors, padding=1)
         
     def output_layer(self, x):
         return F.tanh(self.conv(x))
@@ -160,9 +173,9 @@ class RegressionSubnet(_SubNet):
 class ClassificationSubnet(_SubNet):
     def __init__(self, classes, anchors, depth=4, feature_size=256):
         super().__init__(classes, anchors, depth, feature_size)
-        self.conv = Conv3x3(self.feature_size, (1 + self.classes) * self.anchors, padding=1)
+        self.conv = conv3x3(self.feature_size, (1 + self.classes) * self.anchors, padding=1)
         prior = 0.01    
-        self.conv.conv.bias.data.fill_(-math.log((1.0-prior)/prior))
+        self.conv.bias.data.fill_(-math.log((1.0-prior)/prior))
         
     def output_layer(self, x):
         return self.conv(x)
