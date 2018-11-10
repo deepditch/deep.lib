@@ -38,12 +38,12 @@ class Conv1x1(nn.Module):
     def __init__(self, in_channels, out_channels, **kwargs):
         super().__init__()
         self.conv = conv1x1(in_channels, out_channels, **kwargs)
-        self.batch_norm = nn.BatchNorm2d(out_channels)
-        self.dropout = nn.Dropout(0.1)
+        # self.batch_norm = nn.BatchNorm2d(out_channels)
+        self.dropout = nn.Dropout(0.2)
 
     def forward(self, x):
         x = self.conv(x)
-        x = self.batch_norm(x)
+        # x = self.batch_norm(x)
         x = self.dropout(x)
         return x
 
@@ -52,13 +52,12 @@ class Conv3x3(nn.Module):
     def __init__(self, in_channels, out_channels, **kwargs):
         super().__init__()
         self.conv = conv3x3(in_channels, out_channels, **kwargs)   
-        self.conv = init_conv_weights(self.conv)
-        self.batch_norm = nn.BatchNorm2d(out_channels)
-        self.dropout = nn.Dropout(0.1)
+        # self.batch_norm = nn.BatchNorm2d(out_channels)
+        self.dropout = nn.Dropout(0.2)
     
     def forward(self, x):
         x = self.conv(x)
-        x = self.batch_norm(x)
+        # x = self.batch_norm(x)
         x = self.dropout(x)
         return x
 
