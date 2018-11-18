@@ -76,9 +76,9 @@ class Session():
         }
         torch.save(state, name)
 
-    def load(self, name):
+    def load(self, name, map_location=None):
         if not name.endswith('.ckpt.tar'): name += '.ckpt.tar' 
-        checkpoint = torch.load(name)
+        checkpoint = torch.load(name, map_location=map_location)
         self.model.load_state_dict(checkpoint['model'])
         self.optimizer.load_state_dict(checkpoint['optimizer'])
 
