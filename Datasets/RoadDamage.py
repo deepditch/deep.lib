@@ -9,10 +9,10 @@ from Transforms.ImageTransforms import *
 from xml.dom import minidom
 import pandas as pd
 from collections import namedtuple, OrderedDict
-import os
+import pickle
+import os 
 
-
-def RoadDamageDataset(data_path, imsize=224, batch_size=8, partitions={'train': .85, 'valid': .15}):
+def RoadDamageDataset(data_path, imsize=224, batch_size=8, partitions={'train': .9, 'valid': .1}):
     DATA_PATH = Path(data_path)
     MULTICLASS_CSV_PATH = DATA_PATH/'mc.csv'
     MULTIBB_CSV_PATH = DATA_PATH/'bb.csv'
@@ -42,6 +42,7 @@ def RoadDamageDataset(data_path, imsize=224, batch_size=8, partitions={'train': 
         RandomScale(imsize, 1.17),
         RandomCrop(imsize),
         RandomHorizontalFlip(),
+        RandomLighting(.05, .05),
         transforms.ToTensor(),
         transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
     ])
@@ -56,9 +57,15 @@ def RoadDamageDataset(data_path, imsize=224, batch_size=8, partitions={'train': 
         mean=[-0.485/0.229, -0.456/0.224, -0.406/0.255],
         std=[1/0.229, 1/0.224, 1/0.255]
     )
-
-    i_dict = md.make_partition_indices(len(labels), partitions)
-
+    
+    if not os.path.exists(DATA_PATH/'train_val_split.pickle'):
+        i_dict = md.make_partition_indices(len(labels), partitions)
+        with open(DATA_PATH/'train_val_split.pickle', 'wb') as handle:
+            pickle.dump(i_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)  
+    else:
+        with open(DATA_PATH/'train_val_split.pickle', 'rb') as handle:
+            i_dict = pickle.load(handle)
+    
     idx, test_files = ImageData.parse_csv_data(DATA_PATH/'test_data.csv')
     test_files = [DATA_PATH/file.replace("\\", "/") for file in test_files]
 

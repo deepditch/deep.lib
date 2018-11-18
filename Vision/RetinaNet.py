@@ -8,6 +8,7 @@ import torch.utils.model_zoo as model_zoo
 from torchvision.models.resnet import BasicBlock, Bottleneck, ResNet
 import torchvision.models as models
 
+
 def init_conv_weights(layer, weights_std=0.01, bias=0):
     '''
     RetinaNet's layer initialization
@@ -21,20 +22,44 @@ def init_conv_weights(layer, weights_std=0.01, bias=0):
 
 def conv1x1(in_channels, out_channels, **kwargs):
     '''Return a 1x1 convolutional layer with RetinaNet's weight and bias initialization'''
-
     layer = nn.Conv2d(in_channels, out_channels, kernel_size=1, **kwargs)
     layer = init_conv_weights(layer)
-
     return layer
 
 
 def conv3x3(in_channels, out_channels, **kwargs):
     '''Return a 3x3 convolutional layer with RetinaNet's weight and bias initialization'''
-
     layer = nn.Conv2d(in_channels, out_channels, kernel_size=3, **kwargs)
     layer = init_conv_weights(layer)
-
     return layer
+
+
+class Conv1x1(nn.Module):
+    def __init__(self, in_channels, out_channels, **kwargs):
+        super().__init__()
+        self.conv = conv1x1(in_channels, out_channels, **kwargs)
+        # self.batch_norm = nn.BatchNorm2d(out_channels)
+        self.dropout = nn.Dropout(0.2)
+
+    def forward(self, x):
+        x = self.conv(x)
+        # x = self.batch_norm(x)
+        x = self.dropout(x)
+        return x
+
+
+class Conv3x3(nn.Module):
+    def __init__(self, in_channels, out_channels, **kwargs):
+        super().__init__()
+        self.conv = conv3x3(in_channels, out_channels, **kwargs)   
+        # self.batch_norm = nn.BatchNorm2d(out_channels)
+        self.dropout = nn.Dropout(0.2)
+    
+    def forward(self, x):
+        x = self.conv(x)
+        # x = self.batch_norm(x)
+        x = self.dropout(x)
+        return x
 
 
 class SaveFeatures():
@@ -45,7 +70,7 @@ class SaveFeatures():
         
 
 class FeaturePyramid(nn.Module):
-    def __init__(self, resnet, C3_size=128, C4_size=256, C5_size=512, feature_size=256):
+    def __init__(self, resnet, C3_size=512, C4_size=1024, C5_size=2048, feature_size=256):
         super().__init__()
 
         self.resnet = resnet
@@ -53,25 +78,25 @@ class FeaturePyramid(nn.Module):
         self.sfs = [SaveFeatures(self.resnet[-3]), SaveFeatures(self.resnet[-2]) ]
 
         # upsample C5 to get P5 from the FPN paper
-        self.P5_1           = conv1x1(C5_size, feature_size, stride=1, padding=0)
+        self.P5_1           = Conv1x1(C5_size, feature_size, stride=1, padding=0)
         self.P5_upsampled   = nn.Upsample(scale_factor=2, mode='nearest')
-        self.P5_2           = conv3x3(feature_size, feature_size, stride=1, padding=1)
+        self.P5_2           = Conv3x3(feature_size, feature_size, stride=1, padding=1)
         
         # add P5 elementwise to C4
-        self.P4_1           = conv1x1(C4_size, feature_size, stride=1, padding=0)
+        self.P4_1           = Conv1x1(C4_size, feature_size, stride=1, padding=0)
         #self.P4_upsampled   = nn.Upsample(scale_factor=2, mode='nearest')
-        self.P4_2           = conv3x3(feature_size, feature_size, stride=1, padding=1)
+        self.P4_2           = Conv3x3(feature_size, feature_size, stride=1, padding=1)
         
         # add P4 elementwise to C3
         #self.P3_1 = conv1x1(C3_size, feature_size, stride=1, padding=0)
         #self.P3_2 = conv3x3(feature_size, feature_size, stride=1, padding=1)
         
         # "P6 is obtained via a 3x3 stride-2 conv on C5"
-        self.P6 = conv3x3(C5_size, feature_size, stride=2, padding=1)
+        self.P6 = Conv3x3(C5_size, feature_size, stride=2, padding=1)
         
         # "P7 is computed by applying ReLU followed by a 3x3 stride-2 conv on P6"
         self.P7_1 = nn.ReLU()
-        self.P7_2 = conv3x3(feature_size, feature_size, stride=2, padding=1)
+        self.P7_2 = Conv3x3(feature_size, feature_size, stride=2, padding=1)
 
 
     def forward(self, x):
@@ -115,7 +140,7 @@ class _SubNet(nn.Module):
         self.relu = nn.ReLU(inplace=True)
         # self.down_sample_1 = conv3x3(self.feature_size, self.feature_size, padding=1, stride=2)
         # self.down_sample_2 = conv3x3(self.feature_size, self.feature_size, padding=1, stride=2)
-        self.layers = nn.ModuleList([conv3x3(self.feature_size, self.feature_size, padding=1)] * 4)
+        self.layers = nn.ModuleList([Conv3x3(self.feature_size, self.feature_size, padding=1)] * 4)
 
     def output_layer(self, x): raise NotImplementedError
 
@@ -156,14 +181,13 @@ class ClassificationSubnet(_SubNet):
     
 
 class RetinaNet(nn.Module):
-    def __init__(self, classes, anchors):
+    def __init__(self, classes, anchors, model_ft=models.resnet50(pretrained=True), C3_size=512, C4_size=1024, C5_size=2048):
         super().__init__()     
         
-        model_ft = models.resnet34(pretrained=True)
         layers = list(model_ft.children())[0:-2]
         _resnet = nn.Sequential(*list(layers))
         
-        self.feature_pyramid = FeaturePyramid(_resnet)
+        self.feature_pyramid = FeaturePyramid(_resnet, C3_size, C4_size, C5_size)
 
         self.subnet_boxes = RegressionSubnet(classes, anchors)
         self.subnet_classes = ClassificationSubnet(classes, anchors)

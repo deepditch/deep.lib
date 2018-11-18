@@ -75,14 +75,14 @@ def map_bb_outputs_to_pred_bbs(outputs, anchors, grids, log=False):
     # Grid size is the width and height of the receptive field
     # delta_center is bounded on the range (-grid_size, grid_size); 
     # that is, the center remains within the original receptive field. 
-    delta_center = outputs[:,:2] * (util.to_gpu(grids[:,:2])/2) 
+    delta_center = outputs[:,:2] * (util.to_gpu(grids[:,:2])) 
     
     if log: print("delta_center :", delta_center)
     
     # The last two values in the output represent the width and height of the bounding box.
     # These values are interpreted as a precentage of the original anchor box's width and height.
     # percent_sizes is on the range (.5, 1.5). We add 1 since actn_bbs is on the range (-1, 1)
-    percent_sizes = outputs[:,2:]/2 + 1 
+    percent_sizes = outputs[:,2:] + 1 
     
     if log: print("percent_sizes :", percent_sizes);
     
