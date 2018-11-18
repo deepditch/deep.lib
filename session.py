@@ -77,7 +77,7 @@ class Session():
 
     def load(self, name):
         if not name.endswith('.ckpt.tar'): name += '.ckpt.tar' 
-        checkpoint = torch.load(name)
+        checkpoint = torch.load(name, map_location='cpu')
         self.model.load_state_dict(checkpoint['model'])
         self.optimizer.load_state_dict(checkpoint['optimizer'])
 
@@ -125,7 +125,7 @@ class Session():
             if not self.running: break
             for cb in schedule.callbacks: cb.on_epoch_begin(self)
             running_loss = 0
-            for input, label, *_ in tqdm(schedule.data, desc="Steps", leave=False):
+            for input, label, meta in tqdm(schedule.data, desc="Steps", leave=False):
                 if not self.running: break
                 for cb in schedule.callbacks: cb.on_batch_begin(self)
                 step_loss = self.step(input, label)         
