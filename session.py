@@ -115,7 +115,7 @@ class Session():
         loss = self.criterion(outputs, Variable(util.to_gpu(label)))     # Calculate loss
         loss.backward()                                             # Calculate new gradient
         self.optimizer.step()                                       # Update model parameters
-        return loss.data.tolist()[0]                                # Return loss value
+        return loss.data                                            # Return loss value
 
     def run(self, schedule, epochs):
         self.running = True

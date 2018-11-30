@@ -28,7 +28,8 @@ class OneHotAccuracy(_AccuracyMeter):
 
     def update(self, output, label):
         _, preds = torch.max(output, 1)
-        self.num_correct += torch.sum(preds == label)
+        _, gt = torch.max(label, 1)     
+        self.num_correct += torch.sum(preds == gt).item()
         self.count += label.shape[0]
 
 
@@ -74,7 +75,7 @@ class Validator(TrainCallback):
             for input, label, *_ in tqdm(self.val_data, desc="Validating", leave=False):
                 label = Variable(util.to_gpu(label))
                 output = session.forward(input)
-                step_loss = session.criterion(output, label).data.tolist()[0]
+                step_loss = session.criterion(output, label).data
                 valLoss.update(step_loss, label.shape[0])
                 if self.accuracy_meter is not None:        
                     self.accuracy_meter.update(output, label)

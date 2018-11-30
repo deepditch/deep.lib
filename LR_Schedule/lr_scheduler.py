@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.optim as optim
 from callbacks import TrainCallback
 import matplotlib.pyplot as plt
+import copy
 
 class _LRScheduler(TrainCallback):
     '''An abstract class representing a learning rate schedule'''
