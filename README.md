@@ -23,7 +23,7 @@ Download the dataset and unzip it to `/path/to/data`.
 
 ### To train a model
 ```
-python train.py [--data_dir /path/to/data] [--model_dir /path/to/save/models] [--batch_size 16]
+python train.py [--data_dir /path/to/data] [--model_dir /path/to/save/models] [--batch_size 8]
 ```
 
 After each epoch of training, the model is evaluated against a withheld validation set. `Validation Accuracy: xx` is output after validation; `xx` is the F-Measure on the validation set. The model that performs best on the validation set will be saved to `/path/to/save/models` 
