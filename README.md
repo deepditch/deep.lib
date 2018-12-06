@@ -9,8 +9,7 @@ activate deeplib
 
 This repo requires Pytorch 3.0. This is an old version that I had to use since the latest versions do not support my (oldish) graphics card.
 
-Additional Dependencies (Hopefully this is comprehensive)
-
+Additional Dependencies For GPU Support (recommended)
 - Cuda 9.0
 - cudnn
 
