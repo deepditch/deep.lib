@@ -30,7 +30,7 @@ After each epoch of training, the model is evaluated against a withheld validati
 
 ### To evaluate a model
 ```
-python evaluate.py /path/to/model.ckpt.tar [--data_dir /path/to/data] [--batch_size 16]
+python evaluate.py /path/to/model.ckpt.tar [--data_dir /path/to/data] [--batch_size 8]
 ```
 
 This will evaluate the model's performance against the validation set used during training.
