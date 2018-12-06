@@ -8,9 +8,7 @@ from PIL import Image
 from datetime import datetime
 import sys
 
-API_URL = "http://209.126.30.247/api"
-EMAIL = "machine@learning.com"
-PASSWORD = "mlmodelupload"
+API_URL = "https://www.deepditch.com/api"
 
 def login():
     url = API_URL + "/login"  
@@ -24,18 +22,26 @@ def login():
 
     return r.json()['access_token']
 
-def main(model_file):
-    TOKEN = login()
+def main(args):
+    TOKEN = login(args.email, args.password)
     url = API_URL + "/machine-learning/upload-model"  
     headers = {"X-Requested-With": "XMLHttpRequest", "Authorization": "Bearer " + TOKEN}
-    r = requests.post(url, headers=headers, files=dict(model=model_file))
+    r = requests.post(url, headers=headers, files=dict(model=open(args.model_file,'rb')))
     print(r.status_code) 
     if r.status_code == 201:
-        print(f"Successfully uploaded {model_file}")
+        print(f"Successfully uploaded {args.model_file}")
 
 
 if __name__ == '__main__':
-    if len(sys.argv) != 2:
-        print(f"Usage: {sys.argv[0]} [input file]")
-    else:
-        main(sys.argv[1])
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument('model_file', metavar='Model File')
+    
+    keyword_args = ['--email', '--password']
+
+    for arg in keyword_args:
+        parser.add_argument(arg)
+
+    args = parser.parse_args()
+
+    main(args)

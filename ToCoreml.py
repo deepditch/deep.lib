@@ -26,19 +26,18 @@ def main(input_file, output_file):
         nn.Sigmoid()
     )
 
-    criterion = nn.BCELoss()
-    optim_fn = optim.Adam
-    sess = Session(model_ft, criterion, optim_fn, 1e-2)
-    sess.load(input_file, map_location='cpu')
+    checkpoint = torch.load(input_file, map_location=lambda storage, loc: storage)
+    model_ft.load_state_dict(checkpoint['model'])
 
     imsize = 224
     dummy_input = torch.randn(1, 3, 224, 224, requires_grad=True)
 
-    protofile = f'{output_file}.proto'
+    protofile = output_file + '.proto'
 
-    sess.model.train(False)
-    sess.model.eval()
-    torch.onnx.export(sess.model, dummy_input, protofile, input_names=['0'], output_names=['classification'], verbose=True)
+    model_ft.train(False)
+    model_ft.eval()
+    model_ft.cpu()
+    torch.onnx.export(model_ft, dummy_input, protofile, input_names=['0'], output_names=['classification'], verbose=True)
     model = onnx.load(protofile)
 
     scale = 1.0 / (0.226 * 255.0)
@@ -83,7 +82,8 @@ def main(input_file, output_file):
 
     coreml_model = coremltools.models.MLModel(spec)
 
-    coreml_model.save(f'{output_file}.mlmodel')
+    coreml_model.save(output_file)
+
 
 if __name__ == '__main__':
     if len(sys.argv) != 3:

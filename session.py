@@ -4,10 +4,8 @@ import torch.optim as optim
 from torch.autograd import Variable
 import util
 import callbacks
-from tqdm import tqdm_notebook as tqdm, tnrange
+from tqdm import tqdm
 import os
-
-
 
 class TrainModel():
     def __init__(self, model):
@@ -123,10 +121,9 @@ class Session():
 
     def step(self, input, label):    
         self.optimizer.zero_grad()                                  # Clear past gradient                                         
-        outputs = self.forward(input)                                   # Forward pass                                            
-        loss = self.criterion(outputs, {
-            key: Variable(value) for key, value in label.items()}) \
-            if isinstance(label, dict) else self.criterion(outputs, Variable(util.to_gpu(label)))
+        outputs = self.forward(input) 
+        y = {key: Variable(value) for key, value in label.items()} if isinstance(label, dict) else Variable(util.to_gpu(label))                                                                
+        loss = self.criterion(outputs, y)
         loss.backward()                                             # Calculate new gradient
         self.optimizer.step()                                       # Update model parameters
         return loss.data.tolist()[0]                                # Return loss value

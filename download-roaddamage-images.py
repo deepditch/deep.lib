@@ -6,35 +6,24 @@ import xml.etree.cElementTree as ET
 import urllib
 from PIL import Image
 from datetime import datetime
+import argparse
 
-DATASET_FOLDER = "C:/fastai/courses/dl2/data/road_damage_dataset/Data"
-LOGFILE = DATASET_FOLDER + '/log.log'
-TIME_LOG = DATASET_FOLDER + '/time_log.txt'
+STORAGE_SERVER_URL = "https://www.deepditch.com/"
+API_URL = "https://www.deepditch.com/api"
 
-logging.basicConfig(filename=LOGFILE, level=logging.DEBUG)
-
-STORAGE_SERVER_URL = "http://209.126.30.247"
-API_URL = "http://209.126.30.247/api"
-EMAIL = "machine@learning.com"
-PASSWORD = "mlmodelupload"
-
-TODAY = datetime.now().strftime('%Y-%m-%d')
-
-def get_last_download_date():
-    if not os.path.exists(TIME_LOG):
+def get_last_download_date(logfile):
+    if not os.path.exists(logfile):
         return "1900-1-1"
 
-    with open(TIME_LOG, 'r') as f:
+    with open(logfile, 'r') as f:
         lines = f.read().splitlines()
         last_line = lines[-1]
         return last_line
 
-LAST_DATE = get_last_download_date()
-
-def login():
+def login(email, password):
     url = API_URL + "/login"  
     headers = {"Content-Type": "application/json", "X-Requested-With": "XMLHttpRequest"}
-    params = {"email": EMAIL, "password": PASSWORD}
+    params = {"email": email, "password": password}
     r = requests.post(url=url, data=json.dumps(params), headers=headers)
 
     if(r.status_code != 200):
@@ -43,25 +32,25 @@ def login():
 
     return r.json()['access_token']
 
-TOKEN = login()
-
-def get_damages():
+def get_damages(token, last_date, today):
     url = API_URL + "/road-damage/verified-images"
-    headers = {"Content-Type": "application/json", "X-Requested-With": "XMLHttpRequest", "Authorization": "Bearer " + TOKEN}
-    params = {"after": LAST_DATE}
+    headers = {"Content-Type": "application/json", "X-Requested-With": "XMLHttpRequest", "Authorization": "Bearer " + token}
+    params = {"after": last_date}
     r = requests.get(url=url, data=json.dumps(params), headers=headers)
+
     if(r.status_code != 200):
         logging.error("Failed to get verified images")
         raise Exception("Failed to get verified images")
     
-    logging.info(f"Getting images verified since {LAST_DATE}. Today's date is {TODAY}")
+    logging.info(f"Getting images verified since {last_date}. Today's date is {today}")
+
     return r.json()
 
-def download_image(image, dir):
+def download_image(image, data_dir, dir):
     image_url = STORAGE_SERVER_URL + image['url']
     image_file_name = image['url'].split("/")[-1]
-    image_save_path = DATASET_FOLDER + f"/{dir}" + "/JPEGImages/" + image_file_name
-    annotation_save_path = DATASET_FOLDER + f"/{dir}" + "/Annotations/" + os.path.splitext(image_file_name)[0]+'.xml'
+    image_save_path = data_dir + f"/{dir}" + "/JPEGImages/" + image_file_name
+    annotation_save_path = data_dir + f"/{dir}" + "/Annotations/" + os.path.splitext(image_file_name)[0]+'.xml'
 
     # download the image
     urllib.request.urlretrieve(image_url, image_save_path)
@@ -88,8 +77,12 @@ def download_image(image, dir):
     tree = ET.ElementTree(root)
     tree.write(annotation_save_path)
 
-def download_images(image_array):
-    folder = DATASET_FOLDER + f"/{TODAY}"
+def download_images(data_dir, image_array, today, time_log):
+    if image_array == []: 
+        print("No new images")
+        return
+
+    folder = data_dir + f"/{today}"
     if not os.path.exists(folder):
         os.mkdir(folder)
         logging.info(f"Creating directory {folder}")
@@ -106,13 +99,40 @@ def download_images(image_array):
 
     for image in image_array.values():
         try:
-            download_image(image, TODAY)
+            download_image(image, data_dir, today)
         except Exception as e:
             logging.error(f"Error downloading and saving {STORAGE_SERVER_URL + image['url']}: {e}", exc_info=True)
             continue
 
-    with open(TIME_LOG, 'w') as f:
-        f.write(f'{TODAY} \n')
+    with open(time_log, 'w') as f:
+        f.write(f'{today} \n')
 
-download_images(get_damages())
+def main(args):
+    data_dir = args.data_dir
+    logfile = data_dir + '/log.log'
+    time_log = data_dir + '/time_log.txt'
+
+    logging.basicConfig(filename=logfile, level=logging.DEBUG)
+
+    last_date = get_last_download_date(time_log)
+    today = datetime.now().strftime('%Y-%m-%d')
+
+    token = login(args.email, args.password)
+
+    images = get_damages(token, last_date, today)
  
+    download_images(data_dir, images, today, time_log)
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument('data_dir', metavar='DataDirectory')
+
+    keyword_args = ['--email', '--password']
+
+    for arg in keyword_args:
+        parser.add_argument(arg)
+
+    args = parser.parse_args()
+
+    main(args)

@@ -113,7 +113,43 @@ def ParseDataCSV(path, csv):
     return images, mc
 
 
-def RoadDamageClassifierData(data_path, imsize=224, batch_size=8):  
+def RoadDamageClassifierData(data_path, imsize=224, batch_size=8, partitions={'train': .85, 'valid': .15}):  
+    DATA_PATH = Path(data_path)
+  
+    if partitions != None:
+        # Let's create a new training and validation set
+        
+        # These are the folders in the original dataset
+        govs =  ["Adachi", "Chiba", "Ichihara", "Muroran", "Nagakute", "Numazu", "Sumida"]   
+        
+        # We aggregate each file from the original dataset
+        original_files = []   
+        for gov in govs:
+            original_files.extend([os.path.join(DATA_PATH, gov, 'Annotations', file) for file in os.listdir(os.path.join(DATA_PATH, gov, 'Annotations'))])
+
+        # We then partition the original dataset according to the passed arguments
+        i_dict = md.make_partition_indices(len(original_files), partitions)
+        train_files = util.mask(original_files, i_dict['train'])
+        valid_files = util.mask(original_files, i_dict['valid'])
+
+        # Then, let's add additional images (verified from the website) into the training set
+        new_folders = [name for name in os.listdir(DATA_PATH) if os.path.isdir(os.path.join(DATA_PATH, name)) and name not in govs]
+
+        for folder in new_folders:
+            train_files.extend([os.path.join(DATA_PATH, folder, 'Annotations', file) for file in os.listdir(os.path.join(DATA_PATH, folder, 'Annotations'))])
+
+        # Then we can parse the annotation files we have aggregated into a simpler format, then save our data into a .csv
+        ParseDataFiles(train_files, DATA_PATH/"train_data.csv")
+        ParseDataFiles(valid_files, DATA_PATH/"valid_data.csv")
+
+
+    train_images, train_labels = ParseDataCSV(DATA_PATH, "train_data.csv")
+    valid_images, valid_labels = ParseDataCSV(DATA_PATH, "valid_data.csv")
+
+    train_labels, _ = ClassifierData.make_n_hot_labels(train_labels)
+    valid_labels, _ = ClassifierData.make_n_hot_labels(valid_labels)
+
+
     train_tfms = TransformList([
         RandomScale(imsize, 1.17),
         RandomCrop(imsize),
@@ -127,34 +163,6 @@ def RoadDamageClassifierData(data_path, imsize=224, batch_size=8):
         transforms.ToTensor(),
         transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
     ])
-
-    DATA_PATH = Path(data_path)
-    govs =  ["Adachi", "Chiba", "Ichihara", "Muroran", "Nagakute", "Numazu", "Sumida"]
-    partitions={'train': .85, 'valid': .15}
-    
-    original_files = []
-    
-    for gov in govs:
-        original_files.extend([os.path.join(DATA_PATH, gov, 'Annotations', file) for file in os.listdir(os.path.join(DATA_PATH, gov, 'Annotations'))])
-
-    i_dict = md.make_partition_indices(len(original_files), partitions)
-
-    train_files = util.mask(original_files, i_dict['train'])
-    valid_files = util.mask(original_files, i_dict['valid'])
-
-    new_folders = [name for name in os.listdir(DATA_PATH) if os.path.isdir(os.path.join(DATA_PATH, name)) and name not in govs]
-
-    for folder in new_folders:
-        train_files.extend([os.path.join(DATA_PATH, folder, 'Annotations', file) for file in os.listdir(os.path.join(DATA_PATH, folder, 'Annotations'))])
-
-    ParseDataFiles(train_files, DATA_PATH/"train_data.csv")
-    ParseDataFiles(valid_files, DATA_PATH/"valid_data.csv")
-
-    train_images, train_labels = ParseDataCSV(DATA_PATH, "train_data.csv")
-    valid_images, valid_labels = ParseDataCSV(DATA_PATH, "valid_data.csv")
-
-    train_labels, classes = ClassifierData.make_n_hot_labels(train_labels)
-    valid_labels, classes = ClassifierData.make_n_hot_labels(valid_labels)
 
     datasets = {
         'train': ImageData.ImageDataset(train_images, train_labels, train_tfms, balanced=True),

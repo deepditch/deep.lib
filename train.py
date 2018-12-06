@@ -1,18 +1,19 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
-import torchvision
 from torchvision import models
 from Datasets.RoadDamage import *
 from session import *
 from validation import *
-from LR_Schedule.cyclical import *
+from LR_Schedule.cos_anneal import *
+import argparse
 
 torch.backends.cudnn.benchmark=True
 
-def main():
-    data = RoadDamageClassifierData("C:/fastai/courses/dl2/data/road_damage_dataset/Data")
+def main(args):
+    data = RoadDamageClassifierData(args.data_dir, batch_size=args.batch_size)
 
+    # Define our model using a pretrainind ResNet backbone
     model_ft = models.resnet18(pretrained=True)
     model_ft.avgpool = nn.AdaptiveAvgPool2d(1)
     num_ftrs = model_ft.fc.in_features
@@ -24,25 +25,45 @@ def main():
 
     criterion = nn.BCELoss()
     optim_fn = optim.Adam
+    sess = Session(model_ft, criterion, optim_fn, 3e-4)
 
-    sess = Session(model_ft, criterion, optim_fn, [*[1e-3] * 9, 1e-2])
-
+    # Let's freeze all but the final layer i.e. only the last layer's weights are updated during training and the pretrained weights from the ResNet are unchanged
     sess.freeze() 
 
-    sess.set_lr(3e-4)
-
+    # Configure a training schedule. This schedule will decay the learning weight and validate after each epoch. The best model is saved in the model_dir 
     accuracy = NHotAccuracy(8)
-    validator = Validator(data['valid'], accuracy, save_best=True, model_dir="C:/fastai/courses/dl2/data/road_damage_dataset/Models")
-    lr_scheduler = Cyclical(len(data['train']) * 24)
+    validator = Validator(data['valid'], accuracy, save_best=True, model_dir=args.model_dir)
+    lr_scheduler = CosAnneal(len(data['train']), T_mult=2)
     schedule = TrainingSchedule(data['train'], [validator, lr_scheduler])
 
-    sess.train(schedule, 24)
+    # Train for 15 epochs using the schedule
+    sess.train(schedule, 15)
 
+    # Now let's unfreeze the ResNet backbone and fine tune it
     sess.unfreeze()
 
+    # Reset our learning rate decay and redefine our schedule
+    lr_scheduler = CosAnneal(len(data['train']), T_mult=2)
+    schedule = TrainingSchedule(data['train'], [validator, lr_scheduler])
+
+    # This line sets a smaller learning rate for earlier layers in the network
+    # The network has 10 layers, 9 belong to the ResNet backbone. The last layer gets 1e-4 as a learning rate
+    # The idea here is that we update the highest level feature embeddings faster than the lowest level ones
+    # The lowest level features from the pre-trained ResNet are likeley already 'good' for our task  
     sess.set_lr([*[1e-4 / 1000] * 5, *[1e-4 / 100] * 4, 1e-4])
 
-    sess.train(schedule, 24)
+    # And then train for 31 epochs
+    sess.train(schedule, 31)
 
 if __name__ == '__main__':
-    main()
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument('--data_dir', metavar='Data Directory')
+    parser.add_argument('--model_dir', metavar='Model Directory', help='The directory for saving models while training')
+    parser.add_argument('--batch_size', type=int, metavar='Batch Size')
+
+    args = parser.parse_args()
+
+    args.batch_size = int(args.batch_size)
+
+    main(args)
