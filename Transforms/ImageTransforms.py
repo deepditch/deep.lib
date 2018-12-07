@@ -182,13 +182,17 @@ class GeometricTransform(Transform):
             return y
 
         for i, label in enumerate(y):
-            data, data_type = label
+            data, data_type, name = label
+
+            if(data_type == md.LabelType.CATEGORY):
+                y[i] = (np.array(data), data_type, name)
+
             if(data_type == md.LabelType.BOUNDING_BOX):
                 r,c,*_ = x.shape
                 boxes = util.partition(data, 4) # Partition into array of bounding boxes
                 masks = [center_to_mask(bb, x) for bb in boxes]  # Create masks from bounding boxes
                 trfms = [self.transform_x(mask) for mask in masks]  # Transform masks
-                y[i] = (np.concatenate([mask_to_center(t) for t in trfms]), data_type) # Convert masks back into bounding boxes, save result
+                y[i] = (np.concatenate([mask_to_center(t) for t in trfms]), data_type, name) # Convert masks back into bounding boxes, save result
         
         return y
 
@@ -254,4 +258,25 @@ class RandomHorizontalFlip(RandomTransform, GeometricTransform):
 
     def transform_x(self, im):
         return cv2.flip(im, 1) if self.flip else im
+
+def lighting(im, b, c):
+    """ Adjust image balance and contrast """
+    if b==0 and c==1: return im
+    mu = np.average(im)
+    return np.clip((im-mu)*c+mu+b,0.,1.).astype(np.float32)
+
+class RandomLighting(RandomTransform):
+    def __init__(self, b, c):
+        self.b,self.c = b,c
+
+    def set_state(self):
+        self.b_rand = random.random()*(self.b*2)-self.b
+        self.c_rand = random.random()*(self.c*2)-self.c
+
+    def transform_x(self, x):
+        b = self.b_rand
+        c = self.c_rand
+        c = -1/(c-1) if c<0 else c+1
+        x = lighting(x, b, c)
+        return x
 

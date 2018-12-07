@@ -20,3 +20,6 @@ def listify(x, y):
 
 def partition(x, sz):
     return [x[i:i+4] for i in range(0, len(x), 4)]
+
+def mask(arr, indices):
+    return [arr[i] for i in indices]

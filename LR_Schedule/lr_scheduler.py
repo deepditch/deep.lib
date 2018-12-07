@@ -3,11 +3,12 @@ import torch.nn as nn
 import torch.optim as optim
 from callbacks import TrainCallback
 import matplotlib.pyplot as plt
+import copy
 
 class _LRScheduler(TrainCallback):
     '''An abstract class representing a learning rate schedule'''
 
-    def __init__(self, iteration=0):      
+    def __init__(self, iteration=0): 
         '''
         Keyword Arguments:
             iteration {int} -- The iteration the lr_scheduler is started on. 
@@ -25,12 +26,24 @@ class _LRScheduler(TrainCallback):
 
         raise NotImplementedError 
 
-    def sub_reset(self): raise NotImplementedError
+    def should_get_mom(self): return False
+
+    def get_mom(self): pass
+
+    def sub_reset(self): 
+        '''Resets internal state of the schedule
+        
+        Raises:
+            NotImplementedError -- Sub classes must implement this method. If the sub class has no internal state, can pass
+        '''
+
+        raise NotImplementedError
 
     def reset(self): 
         '''Resets the schedule'''
 
         self.sub_reset()
+        self.base_lrs = None
         self.iteration = 0
 
     def on_train_begin(self, session):
@@ -66,9 +79,11 @@ class _LRScheduler(TrainCallback):
         if iteration is not None:
             self.iteration = iteration    
         self.session.set_lr(self.get_lr())
+        if self.should_get_mom():
+            self.session.set_mom(self.get_mom())
         self.iteration += 1
 
-    def plot(self, iterations=None):
+    def plot(self, iterations=None, lrs=[1]):
         '''Plots learning rate against iterations
         
         Keyword Arguments:
@@ -76,23 +91,29 @@ class _LRScheduler(TrainCallback):
         '''
 
         cp = copy.deepcopy(self)
-        if(iterations is None): iterations = cp.iteration
+        if iterations is None: iterations = cp.iteration
         cp.reset()
-        if cp.base_lrs is None: cp.base_lrs = [1]
+        if cp.base_lrs is None: cp.base_lrs = lrs
 
         lrs = []
+        moms = []
 
         for i in range(iterations):
             lrs.append(cp.get_lr())
+            moms.append(cp.get_mom())
             cp.iteration += 1
 
-        fig, ax = plt.subplots()
+        fig, ax_lr = plt.subplots()   
+        ax_mom = ax_lr.twinx()
 
-        ax.set_ylabel("learning rate")
-        ax.set_xlabel("iterations")
+        ax_mom.set_xlabel("Iteration")
+        ax_mom.set_ylabel("Momentum", color='g')
+        ax_lr.set_ylabel("Learning Rate", color='b')
 
+        ax_mom.plot(range(iterations), moms, 'g-')
+    
         for lr in [*zip(*lrs)]: # Matrix transposition
-            ax.plot(range(iterations), lr)
+            ax_lr.plot(range(iterations), lr, 'b-')
 
 
 class _OnEpochLRScheduler(_LRScheduler):

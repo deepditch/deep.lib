@@ -7,11 +7,14 @@ class ModelData():
     def __init__(self, datasets, batch_size, shuffle=True, num_workers=4):
         self.datasets = datasets
         self.dataloaders = {
-            key: torch.utils.data.DataLoader(data, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers) 
+            key: torch.utils.data.DataLoader(data, batch_size=batch_size, num_workers=num_workers, sampler=data.sampler) 
             for key, data in datasets.items() }
 
     def __getitem__(self, key):
         return self.dataloaders[key]
+
+    def __setitem__(self, key, value):
+        self.dataloaders[key] = value
 
 
 class Subset(Dataset):

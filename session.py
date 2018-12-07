@@ -2,11 +2,10 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.autograd import Variable
-import callbacks
-from tqdm import tqdm_notebook as tqdm, tnrange
-import os
 import util
-
+import callbacks
+from tqdm import tqdm
+import os
 
 class TrainModel():
     def __init__(self, model):
@@ -63,8 +62,8 @@ class Session():
         self.criterion = criterion    
         self.optim_fn = optim_fn
         param_arr = [{'params':layer.parameters(), 'lr':0} for layer in self.model.children()]
-        self.optimizer = self.optim_fn(param_arr)
-        self.set_lr(lrs)
+        self.optimizer = self.optim_fn(param_arr) # Initialize with learning rate of 0
+        self.set_lr(lrs) # Update learning rate from passed lrs
         self.running = False
 
     def save(self, name):
@@ -75,9 +74,9 @@ class Session():
         }
         torch.save(state, name)
 
-    def load(self, name):
+    def load(self, name, map_location=None):
         if not name.endswith('.ckpt.tar'): name += '.ckpt.tar' 
-        checkpoint = torch.load(name)
+        checkpoint = torch.load(name, map_location=map_location)
         self.model.load_state_dict(checkpoint['model'])
         self.optimizer.load_state_dict(checkpoint['optimizer'])
 
@@ -97,6 +96,12 @@ class Session():
     def unfreeze(self):
         self.freeze_to(0)
 
+    def freeze_bn(self):
+        '''Freeze BatchNorm layers.'''
+        for layer in self.model.modules():
+            if isinstance(layer, nn.BatchNorm2d):
+                layer.eval()
+
     def set_lr(self, lrs):
         lrs = util.listify(lrs, self.optimizer.param_groups)
         if len(lrs) != len(self.optimizer.param_groups):
@@ -105,14 +110,20 @@ class Session():
         for param_group, lr in zip(self.optimizer.param_groups, lrs):
             param_group['lr'] = lr
 
+    def set_mom(self, mom):
+        if 'betas' in self.optimizer.param_groups[0]:
+            for pg in self.optimizer.param_groups: pg['betas'] = (mom, pg['betas'][1])
+        else:
+            for pg in self.optimizer.param_groups: pg['momentum'] = mom
+
     def forward(self, input):
-        input = Variable(util.to_gpu(input))
-        return self.model(input)
+        return self.model(Variable(util.to_gpu(input)))
 
     def step(self, input, label):    
-        self.optimizer.zero_grad()                                  # Clear past gradent                                         
-        outputs = self.forward(input)                               # Forward pass
-        loss = self.criterion(outputs, Variable(util.to_gpu(label)))     # Calculate loss
+        self.optimizer.zero_grad()                                  # Clear past gradient                                         
+        outputs = self.forward(input) 
+        y = {key: Variable(value) for key, value in label.items()} if isinstance(label, dict) else Variable(util.to_gpu(label))                                                                
+        loss = self.criterion(outputs, y)
         loss.backward()                                             # Calculate new gradient
         self.optimizer.step()                                       # Update model parameters
         return loss.data.tolist()[0]                                # Return loss value
@@ -129,7 +140,7 @@ class Session():
                 if not self.running: break
                 for cb in schedule.callbacks: cb.on_batch_begin(self)
                 step_loss = self.step(input, label)         
-                lossMeter.update(step_loss, label.shape[0])
+                lossMeter.update(step_loss, input.shape[0])
                 for cb in schedule.callbacks: cb.on_batch_end(self, lossMeter)
             for cb in schedule.callbacks: cb.on_epoch_end(self, lossMeter)      
         for cb in schedule.callbacks: cb.on_train_end(self)   

@@ -43,10 +43,28 @@ def open_image(fn):
 
 
 class ImageDataset(Dataset):
-    def __init__(self, files, labels, transform):
+    def __init__(self, files, labels, transform, balanced=False):
         self.files = files
         self.labels = labels
         self.transform = transform
+
+        if(balanced):              
+            counts = np.zeros(len(labels[0]))
+            N = 0
+            for label in labels:
+                counts += label
+                N += np.sum(label)
+
+            class_weights = N / counts
+
+            image_weights = np.zeros(len(labels))
+
+            for idx, label in enumerate(labels):
+                image_weights[idx] = np.sum(np.compress(label, class_weights))
+
+            self.sampler = torch.utils.data.sampler.WeightedRandomSampler(image_weights, len(image_weights))
+        else:
+            self.sampler = None
     
     def __len__(self): return len(self.files)
 
@@ -54,8 +72,14 @@ class ImageDataset(Dataset):
         file, label = self.files[i], self.labels[i]
         label = deepcopy(label) # Transformations happen in place. Need to deepcopy original label
         x, y = self.transform(open_image(file), label)
+        
+        if isinstance(y, md.StructuredLabel): ## Ignore the label types
+            label = {part[2]: part[0] for part in y}
+        else:
+            label = y
+
         meta = {'file': str(file)}
-        return x, y, meta
+        return x, label, meta
 
 
 def from_paths(path, batch_size, transforms):
@@ -102,7 +126,7 @@ def from_csv(dir, csv_file, batch_size, train_transforms, val_trainsforms):
     n_hot_labels, classes = ClassifierData.make_n_hot_labels(labels)
     i_dict = md.make_partition_indices(len(n_hot_labels), {'train': .8, 'valid': .2})
     datasets = {
-        'train': ImageDataset(np.array(files)[i_dict['train']], np.array(n_hot_labels)[i_dict['train']], train_transforms),
+        'train': ImageDataset(np.array(files)[i_dict['train']], np.array(n_hot_labels)[i_dict['train']], train_transforms, balanced=True),
         'valid': ImageDataset(np.array(files)[i_dict['valid']], np.array(n_hot_labels)[i_dict['valid']], val_trainsforms)
     }  
     return md.ModelData(datasets, batch_size)

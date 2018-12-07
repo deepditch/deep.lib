@@ -126,3 +126,6 @@ Thumbs.db
 .pytest_cache
 
 *.ckpt.tar
+*.proto
+*.mlmodel
+
