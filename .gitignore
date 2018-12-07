@@ -126,3 +126,4 @@ Thumbs.db
 .pytest_cache
 
 *.ckpt.tar
+*.arff

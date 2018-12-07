@@ -7,7 +7,7 @@ class ModelData():
     def __init__(self, datasets, batch_size, shuffle=True, num_workers=4):
         self.datasets = datasets
         self.dataloaders = {
-            key: torch.utils.data.DataLoader(data, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers) 
+            key: torch.utils.data.DataLoader(data, batch_size=batch_size, sampler=data.sampler, num_workers=num_workers) 
             for key, data in datasets.items() }
 
     def __getitem__(self, key):

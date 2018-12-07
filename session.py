@@ -58,12 +58,12 @@ class LossMeter(object):
 
 
 class Session():
-    def __init__(self, model, criterion, optim_fn, lrs=1e-3):
+    def __init__(self, model, criterion, optim_fn, lrs=1e-3, weight_decay=0):
         self.model = util.to_gpu(model)
         self.criterion = criterion    
         self.optim_fn = optim_fn
         param_arr = [{'params':layer.parameters(), 'lr':0} for layer in self.model.children()]
-        self.optimizer = self.optim_fn(param_arr)
+        self.optimizer = self.optim_fn(param_arr, weight_decay=weight_decay)
         self.set_lr(lrs)
         self.running = False
 
