@@ -28,6 +28,7 @@ def login(email, password):
 
     if(r.status_code != 200):
         logging.error("Login Failure")
+        print(r)
         raise Exception("Login Failure")
 
     return r.json()['access_token']

@@ -7,7 +7,7 @@ from session import *
 from validation import *
 from LR_Schedule.cos_anneal import *
 import argparse
-
+from callbacks import MemoryProfiler
 torch.backends.cudnn.benchmark=True
 
 def main(args):

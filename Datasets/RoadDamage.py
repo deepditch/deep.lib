@@ -165,7 +165,7 @@ def RoadDamageClassifierData(data_path, imsize=224, batch_size=8, partitions={'t
     ])
 
     datasets = {
-        'train': ImageData.ImageDataset(train_images, train_labels, train_tfms, balanced=True),
+        'train': ImageData.ImageDataset(train_images, train_labels, train_tfms),
         'valid': ImageData.ImageDataset(valid_images, valid_labels, val_tfms)
     }  
 
