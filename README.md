@@ -5,7 +5,7 @@ If you use Anaconda to manage python environments (recommended), do the followin
 ```
 conda env create -f environment.yml
 activate deeplib
-conda install pytorch torchvision cuda90 -c pytorch
+conda install opencv pytorch torchvision cuda90 -c pytorch
 ```
 
 Additional Dependencies For GPU Support (recommended)
