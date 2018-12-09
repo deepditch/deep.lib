@@ -5,6 +5,7 @@ If you use Anaconda to manage python environments (recommended), do the followin
 ```
 conda env create -f environment.yml
 activate deeplib
+conda install pytorch=0.3.0 -c pytorch
 ```
 
 This repo requires Pytorch 3.0. This is an old version that I had to use since the latest versions do not support my (oldish) graphics card.
