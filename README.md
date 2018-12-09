@@ -5,10 +5,16 @@ If you use Anaconda to manage python environments (recommended), do the followin
 ```
 conda env create -f environment.yml
 activate deeplib
-conda install opencv pytorch torchvision cuda90 -c pytorch
+conda install protobuf requests opencv pytorch torchvision cuda90 -c pytorch
+pip install onnx-coreml
 ```
 
-Additional Dependencies For GPU Support (recommended)
+If coremltools does not install correctly try the following:
+```
+pip install git+https://github.com/apple/coremltools
+```
+
+Additional Dependencies For GPU Support
 - Cuda 9.0
 - cudnn
 
