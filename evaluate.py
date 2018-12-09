@@ -29,9 +29,12 @@ def main(args):
     sess.load(args.model_file) 
 
     accuracy = NHotAccuracy(8)
-    validator = Validator(data['valid'], accuracy, save_best=True, model_dir=args.model_dir)
+    validator = Validator(data['valid'], accuracy)
 
     validator.run(sess)
+
+    for i, c in enumerate(accuracy.confusion):
+        print(f'class {i}: {c}')
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()

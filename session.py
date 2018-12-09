@@ -122,11 +122,14 @@ class Session():
     def step(self, input, label):    
         self.optimizer.zero_grad()                                  # Clear past gradient                                         
         outputs = self.forward(input) 
-        y = {key: Variable(value) for key, value in label.items()} if isinstance(label, dict) else Variable(util.to_gpu(label))                                                                
-        loss = self.criterion(outputs, y)
+        if isinstance(label, dict):
+            label = {key: Variable(value) for key, value in label.items()}  
+        else:
+            label = Variable(util.to_gpu(label))     
+        loss = self.criterion(outputs, label)
         loss.backward()                                             # Calculate new gradient
         self.optimizer.step()                                       # Update model parameters
-        return loss.data.tolist()[0]                                # Return loss value
+        return loss.data                                            # Return loss value
 
     def run(self, schedule, epochs):
         self.running = True
@@ -139,7 +142,7 @@ class Session():
             for input, label, *_ in tqdm(schedule.data, desc="Steps", leave=False):
                 if not self.running: break
                 for cb in schedule.callbacks: cb.on_batch_begin(self)
-                step_loss = self.step(input, label)         
+                step_loss = self.step(input, label)  
                 lossMeter.update(step_loss, input.shape[0])
                 for cb in schedule.callbacks: cb.on_batch_end(self, lossMeter)
             for cb in schedule.callbacks: cb.on_epoch_end(self, lossMeter)      
