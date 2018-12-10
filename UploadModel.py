@@ -37,11 +37,14 @@ if __name__ == '__main__':
 
     parser.add_argument('model_file', metavar='Model File')
     
-    keyword_args = ['--email', '--password']
+    keyword_args = ['--email', '--password', '--api_address']
 
     for arg in keyword_args:
         parser.add_argument(arg)
 
     args = parser.parse_args()
+
+    if args.api_address is not None:
+        API_URL = args.api_address
 
     main(args)

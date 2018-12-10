@@ -33,27 +33,28 @@ def main(args):
     # Configure a training schedule. This schedule will decay the learning weight and validate after each epoch. The best model is saved in the model_dir 
     accuracy = NHotAccuracy(8)
     validator = Validator(data['valid'], accuracy, save_best=True, model_dir=args.model_dir)
-    lr_scheduler = CosAnneal(len(data['train']), T_mult=2)
+    lr_scheduler = CosAnneal(len(data['train']), T_mult=2, lr_min=3e-4/100)
     schedule = TrainingSchedule(data['train'], [validator, lr_scheduler])
 
     # Train for 15 epochs using the schedule
-    sess.train(schedule, 15)
+    # sess.train(schedule, 15)
 
     # Now let's unfreeze the ResNet backbone and fine tune it
     sess.unfreeze()
 
     # Reset our learning rate decay and redefine our schedule
-    lr_scheduler = CosAnneal(len(data['train']), T_mult=2)
+    lrs = [*[1e-4 / 100] * 5, *[1e-4 / 10] * 4, 1e-4]
+    lr_scheduler = CosAnneal(len(data['train']), T_mult=2, lr_min=[lr / 100 for lr in lrs])
     schedule = TrainingSchedule(data['train'], [validator, lr_scheduler])
 
     # This line sets a smaller learning rate for earlier layers in the network
     # The network has 10 layers, 9 belong to the ResNet backbone. The last layer gets 1e-4 as a learning rate
     # The idea here is that we update the highest level feature embeddings faster than the lowest level ones
     # The lowest level features from the pre-trained ResNet are likeley already 'good' for our task  
-    sess.set_lr([*[1e-4 / 1000] * 5, *[1e-4 / 100] * 4, 1e-4])
+    sess.set_lr(lrs)
 
-    # And then train for 31 epochs
-    sess.train(schedule, 31)
+    # And then train for 63 epochs
+    sess.train(schedule, 63)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()

@@ -129,11 +129,17 @@ if __name__ == '__main__':
 
     parser.add_argument('data_dir', metavar='DataDirectory')
 
-    keyword_args = ['--email', '--password']
+    keyword_args = ['--email', '--password', '--api_address', '--storage_address']
 
     for arg in keyword_args:
         parser.add_argument(arg)
 
     args = parser.parse_args()
+
+    if args.api_address is not None:
+        API_URL = args.api_address
+    
+    if args.storage_address is not None:
+        STORAGE_SERVER_URL = args.storage_address
 
     main(args)
