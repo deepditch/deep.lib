@@ -24,7 +24,11 @@ class CosAnneal(_OnBatchLRScheduler):
         cos_out = (1 + math.cos(math.pi * (self.T_cur / self.T_max)))
             
         self.T_cur += 1
-        return [self.lr_min + .5 * (base_lr - self.lr_min) * cos_out for base_lr in self.base_lrs]
+        
+        if type(self.lr_min) is list or type(self.lr_min) is tuple:
+            return [lr_min + .5 * (base_lr - lr_min) * cos_out for lr_min, base_lr in zip(self.lr_min, self.base_lrs)]
+        else:
+            return [self.lr_min + .5 * (base_lr - self.lr_min) * cos_out for base_lr in self.base_lrs]
 
     def sub_reset(self):
         self.T_cur = 0
