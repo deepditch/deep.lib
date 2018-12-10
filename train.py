@@ -37,7 +37,7 @@ def main(args):
     schedule = TrainingSchedule(data['train'], [validator, lr_scheduler])
 
     # Train for 15 epochs using the schedule
-    # sess.train(schedule, 15)
+    sess.train(schedule, 15)
 
     # Now let's unfreeze the ResNet backbone and fine tune it
     sess.unfreeze()
