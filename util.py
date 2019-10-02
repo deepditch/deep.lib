@@ -1,8 +1,6 @@
 import torch
 from collections import Iterable
 
-
-
 USE_GPU = torch.cuda.is_available()
 
 def to_gpu(x, *args, **kwargs):

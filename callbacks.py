@@ -53,5 +53,6 @@ class MemoryProfiler(TrainCallback):
     def on_train_end(self, session): self.print_profile("on_train_end")
 
 
-
-
+class LossLogger(TrainCallback):
+    def on_epoch_end(self, session, lossMeter): 
+        tqdm.write(f"Training Loss: {lossMeter.debias}")

@@ -4,7 +4,7 @@ import torch.optim as optim
 from torch.autograd import Variable
 import util
 import callbacks
-from tqdm import tqdm
+from tqdm import tqdm_notebook as tqdm
 import os
 
 class TrainModel():
