@@ -26,12 +26,13 @@ class OneHotAccuracy(_AccuracyMeter):
         self.count = 0
         
     def accuracy(self): 
-        return self.num_correct / self.count
+        return self.num_correct.double() / float(self.count)
 
     def update(self, output, label):
         _, preds = torch.max(output, 1)
         self.num_correct += torch.sum(preds == label)
         self.count += label.shape[0]
+        
 
 
 class NHotAccuracy(_AccuracyMeter):
@@ -137,7 +138,7 @@ class Validator(TrainCallback):
         
         if self.save_best and val_accuracy > self.best_accuracy:
             self.best_accuracy = val_accuracy
-            session.save(f'{self.model_dir}/best-{self.batch}-{round(self.best_accuracy, 2)}')
+            session.save(f'{self.model_dir}/best-{self.batch}-{round(self.best_accuracy.item(), 6)}')
 
         if lossMeter is not None:
             tqdm.write(f"Training Loss: {lossMeter.debias}  Validaton Loss: {valLoss.raw_avg} Validation Accuracy: {val_accuracy}")

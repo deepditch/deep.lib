@@ -5,53 +5,100 @@ import torch.optim as optim
 from torch.autograd import Variable
 import util
 
+def batch_hard_triplet_loss(embeddings, labels, margin):
+    """Build the triplet loss over a batch of embeddings.
+    For each anchor, we get the hardest positive and hardest negative to form a triplet.
+    Args:
+        labels: labels of the batch, of size (batch_size,)
+        embeddings: tensor of shape (batch_size, embed_dim)
+        margin: margin for triplet loss
+        squared: Boolean. If true, output is the pairwise squared euclidean distance matrix.
+                If false, output is the pairwise euclidean distance matrix.
+    Returns:
+        triplet_loss: scalar tensor containing the triplet loss
+    """
+    # Get the pairwise distance matrix
+    pairwise_dist = _pairwise_distances(embeddings)
+
+    # For each anchor, get the hardest positive
+    # First, we need to get a mask for every valid positive (they should have same label)
+    mask_anchor_positive = _get_anchor_positive_triplet_mask(labels).float()
+
+    # We put to 0 any element where (a, p) is not valid (valid if a != p and label(a) == label(p))
+    anchor_positive_dist = mask_anchor_positive * pairwise_dist
+
+    # shape (batch_size, 1)
+    hardest_positive_dist, _ = anchor_positive_dist.max(1, keepdim=True)
+
+    # For each anchor, get the hardest negative
+    # First, we need to get a mask for every valid negative (they should have different labels)
+    mask_anchor_negative = _get_anchor_negative_triplet_mask(labels).float()
+
+    # We add the maximum value in each row to the invalid negatives (label(a) == label(n))
+    max_anchor_negative_dist, _ = pairwise_dist.max(1, keepdim=True)
+    anchor_negative_dist = pairwise_dist + max_anchor_negative_dist * (1.0 - mask_anchor_negative)
+
+    # shape (batch_size,)
+    hardest_negative_dist, _ = anchor_negative_dist.min(1, keepdim=True)
+
+    # Combine biggest d(a, p) and smallest d(a, n) into final triplet loss
+    tl = hardest_positive_dist - hardest_negative_dist + margin
+    tl[tl < 0] = 0
+    triplet_loss = tl.mean()
+
+    return triplet_loss
+
 class BatchHardTripletLoss(nn.Module):
     def __init__(self, margin):
         super().__init__()
         self.margin = margin
 
     def forward(self, embeddings, labels):
-        """Build the triplet loss over a batch of embeddings.
-        For each anchor, we get the hardest positive and hardest negative to form a triplet.
-        Args:
-            labels: labels of the batch, of size (batch_size,)
-            embeddings: tensor of shape (batch_size, embed_dim)
-            margin: margin for triplet loss
-            squared: Boolean. If true, output is the pairwise squared euclidean distance matrix.
-                    If false, output is the pairwise euclidean distance matrix.
-        Returns:
-            triplet_loss: scalar tensor containing the triplet loss
-        """
-        # Get the pairwise distance matrix
-        pairwise_dist = _pairwise_distances(embeddings)
+        return batch_hard_triplet_loss(embeddings, labels, self.margin)
 
-        # For each anchor, get the hardest positive
-        # First, we need to get a mask for every valid positive (they should have same label)
-        mask_anchor_positive = _get_anchor_positive_triplet_mask(labels).float()
+def batch_all_triplet_loss(embeddings, labels, margin): 
+    """Build the triplet loss over a batch of embeddings.
+    We generate all the valid triplets and average the loss over the positive ones.
+    Args:
+        labels: labels of the batch, of size (batch_size,)
+        embeddings: tensor of shape (batch_size, embed_dim)
+        margin: margin for triplet loss
+        squared: Boolean. If true, output is the pairwise squared euclidean distance matrix.
+                If false, output is the pairwise euclidean distance matrix.
+    Returns:
+        triplet_loss: scalar tensor containing the triplet loss
+    """
+    # Get the pairwise distance matrix
+    pairwise_dist = _pairwise_distances(embeddings)
 
-        # We put to 0 any element where (a, p) is not valid (valid if a != p and label(a) == label(p))
-        anchor_positive_dist = mask_anchor_positive * pairwise_dist
+    anchor_positive_dist = pairwise_dist.unsqueeze(2)
+    anchor_negative_dist = pairwise_dist.unsqueeze(1)
 
-        # shape (batch_size, 1)
-        hardest_positive_dist, _ = anchor_positive_dist.max(1, keepdim=True)
+    # Compute a 3D tensor of size (batch_size, batch_size, batch_size)
+    # triplet_loss[i, j, k] will contain the triplet loss of anchor=i, positive=j, negative=k
+    # Uses broadcasting where the 1st argument has shape (batch_size, batch_size, 1)
+    # and the 2nd (batch_size, 1, batch_size)
+    triplet_loss = anchor_positive_dist - anchor_negative_dist + margin
 
-        # For each anchor, get the hardest negative
-        # First, we need to get a mask for every valid negative (they should have different labels)
-        mask_anchor_negative = _get_anchor_negative_triplet_mask(labels).float()
+    # Put to zero the invalid triplets
+    # (where label(a) != label(p) or label(n) == label(a) or a == p)
+    mask = _get_triplet_mask(labels)
+    triplet_loss = mask.float() * triplet_loss
 
-        # We add the maximum value in each row to the invalid negatives (label(a) == label(n))
-        max_anchor_negative_dist, _ = pairwise_dist.max(1, keepdim=True)
-        anchor_negative_dist = pairwise_dist + max_anchor_negative_dist * (1.0 - mask_anchor_negative)
+    # Remove negative losses (i.e. the easy triplets)
+    triplet_loss[triplet_loss < 0] = 0
 
-        # shape (batch_size,)
-        hardest_negative_dist, _ = anchor_negative_dist.min(1, keepdim=True)
+    # Count number of positive triplets (where triplet_loss > 0)
+    valid_triplets = triplet_loss[triplet_loss > 1e-16]
+    num_positive_triplets = valid_triplets.size(0)
+    num_valid_triplets = mask.sum()
 
-        # Combine biggest d(a, p) and smallest d(a, n) into final triplet loss
-        tl = hardest_positive_dist - hardest_negative_dist + self.margin
-        tl[tl < 0] = 0
-        triplet_loss = tl.mean()
+    fraction_positive_triplets = num_positive_triplets / (num_valid_triplets.float() + 1e-16)
 
-        return triplet_loss
+    # Get final mean triplet loss over the positive valid triplets
+    triplet_loss = triplet_loss.sum() / (num_positive_triplets + 1e-16)
+
+    return triplet_loss
 
 class BatchAllTripletLoss(nn.Module):
     def __init__(self, margin):
@@ -59,48 +106,8 @@ class BatchAllTripletLoss(nn.Module):
         self.margin = margin
 
     def forward(self, embeddings, labels):
-        """Build the triplet loss over a batch of embeddings.
-        We generate all the valid triplets and average the loss over the positive ones.
-        Args:
-            labels: labels of the batch, of size (batch_size,)
-            embeddings: tensor of shape (batch_size, embed_dim)
-            margin: margin for triplet loss
-            squared: Boolean. If true, output is the pairwise squared euclidean distance matrix.
-                    If false, output is the pairwise euclidean distance matrix.
-        Returns:
-            triplet_loss: scalar tensor containing the triplet loss
-        """
-        # Get the pairwise distance matrix
-        pairwise_dist = _pairwise_distances(embeddings)
-
-        anchor_positive_dist = pairwise_dist.unsqueeze(2)
-        anchor_negative_dist = pairwise_dist.unsqueeze(1)
-
-        # Compute a 3D tensor of size (batch_size, batch_size, batch_size)
-        # triplet_loss[i, j, k] will contain the triplet loss of anchor=i, positive=j, negative=k
-        # Uses broadcasting where the 1st argument has shape (batch_size, batch_size, 1)
-        # and the 2nd (batch_size, 1, batch_size)
-        triplet_loss = anchor_positive_dist - anchor_negative_dist + self.margin
-
-        # Put to zero the invalid triplets
-        # (where label(a) != label(p) or label(n) == label(a) or a == p)
-        mask = _get_triplet_mask(labels)
-        triplet_loss = mask.float() * triplet_loss
-
-        # Remove negative losses (i.e. the easy triplets)
-        triplet_loss[triplet_loss < 0] = 0
-
-        # Count number of positive triplets (where triplet_loss > 0)
-        valid_triplets = triplet_loss[triplet_loss > 1e-16]
-        num_positive_triplets = valid_triplets.size(0)
-        num_valid_triplets = mask.sum()
-
-        fraction_positive_triplets = num_positive_triplets / (num_valid_triplets.float() + 1e-16)
-
-        # Get final mean triplet loss over the positive valid triplets
-        triplet_loss = triplet_loss.sum() / (num_positive_triplets + 1e-16)
-
-        return triplet_loss
+        return batch_all_triplet_loss(embeddings, labels, margin)
+ 
 
 def _pairwise_distances(embeddings, squared=False):
     """Compute the 2D matrix of distances between all the embeddings.
