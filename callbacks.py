@@ -15,7 +15,7 @@ class TrainCallback:
     def on_train_begin(self, session): pass
     def on_epoch_begin(self, session): pass
     def on_batch_begin(self, session): pass
-    def on_batch_end(self, session, lossMeter): pass
+    def on_batch_end(self, session, lossMeter, output, label): pass
     def on_epoch_end(self, session, lossMeter): pass
     def on_train_end(self, session): pass
         

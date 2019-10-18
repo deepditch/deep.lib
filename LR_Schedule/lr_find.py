@@ -32,7 +32,7 @@ class LRFindScheduler(_OnBatchLRScheduler):
         self.lrs.append(new_lr)
         return new_lr
 
-    def on_batch_end(self, session, lossMeter):
+    def on_batch_end(self, session, lossMeter, output, label):
         self.losses.append(lossMeter.debias)
         if (math.isnan(lossMeter.debias) or lossMeter.debias > self.best*4 or lossMeter.debias is float('nan')):
             session.stop()

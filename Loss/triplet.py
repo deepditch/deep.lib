@@ -106,7 +106,7 @@ class BatchAllTripletLoss(nn.Module):
         self.margin = margin
 
     def forward(self, embeddings, labels):
-        return batch_all_triplet_loss(embeddings, labels, margin)
+        return batch_all_triplet_loss(embeddings, labels, self.margin)
  
 
 def _pairwise_distances(embeddings, squared=False):
