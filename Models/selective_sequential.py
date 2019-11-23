@@ -7,6 +7,7 @@ from session import LossMeter, EvalModel
 from callbacks import *
 import util
 from Loss.triplet import *
+from torch.utils.tensorboard import SummaryWriter
 
 class SelectiveSequential(nn.Module):
     def __init__(self, to_select, modules_dict):
@@ -32,7 +33,7 @@ class CustomOneHotAccuracy(OneHotAccuracy):
         return super().update(output[-1][0], label)
 
 class EmbeddingSpaceValidator(TrainCallback):
-    def __init__(self, val_data, num_embeddings, accuracy_meter_fn):
+    def __init__(self, val_data, num_embeddings, accuracy_meter_fn, model_file=None):
         self.val_data = val_data
         self.val_accuracy_meter = accuracy_meter_fn()
         self.train_accuracy_meter = accuracy_meter_fn()
@@ -56,6 +57,10 @@ class EmbeddingSpaceValidator(TrainCallback):
         self.num_epochs = 0
         
         self.epochs = []
+
+        self.model_file = model_file
+
+        self.best_accuracy = 0
 
     def run(self, session, lossMeter=None):
         self.val_accuracy_meter.reset()
@@ -85,6 +90,10 @@ class EmbeddingSpaceValidator(TrainCallback):
         self.val_bce_losses.append(val_bce_loss.raw_avg.item())
          
         accuracy = self.val_accuracy_meter.accuracy()
+
+        if self.model_file != None and accuracy > self.best_accuracy:
+            session.save(self.model_file)
+            self.base_accuracy = accuracy
         
         self.val_accuracies.append(accuracy)
               
@@ -156,3 +165,21 @@ class EmbeddingSpaceValidator(TrainCallback):
             ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))   
 
         plt.show()
+
+
+def tensorboard_embeddings(model, select, dataloader, targets, images, board='./runs'):
+    old_select = model._to_select
+    model._to_select = select
+    writer = SummaryWriter(board)
+    
+    outputs = {name: [] for name in select}
+    
+    with EvalModel(model):
+        for input, label in dataloader:
+            output = model.forward(Variable(util.to_gpu(input)))
+            for layer in output:    
+                outputs[layer[1]].append(layer[0].data.cpu().view(layer[0].size(0), -1))    
+                
+    for name, output in outputs.items():
+        cat = torch.cat(output)
+        writer.add_embedding(cat, tag=name, metadata=targets, label_img=images)

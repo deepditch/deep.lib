@@ -130,3 +130,4 @@ Thumbs.db
 *.mlmodel
 
 *.tar
+Notebooks/MNIST/mnist_*
