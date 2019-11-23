@@ -17,7 +17,7 @@ class TripletRegularizedLoss(nn.Module):
         
         if (self.alpha > 0):
             for layer in x[:-1]:        
-                triplet += batch_hard_triplet_loss(layer[0].view(layer[0].size(0), -1), y, self.margin)
+                triplet += batch_all_triplet_loss(layer[0].view(layer[0].size(0), -1), y, self.margin)
 
             triplet *= self.alpha
             
