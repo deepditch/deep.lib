@@ -118,7 +118,7 @@ class EmbeddingSpaceValidator(TrainCallback):
         self.epochs.append(self.num_batches)
         self.num_epochs += 1
         
-        for meter, loss in zip(self.train_embedding_loss_meters, self.train_embedding_losses)
+        for meter, loss in zip(self.train_embedding_loss_meters, self.train_embedding_losses):
             loss.append(meter.raw_avg)
             meter.reset()
         
