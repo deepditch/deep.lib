@@ -33,12 +33,12 @@ class CustomOneHotAccuracy(OneHotAccuracy):
         return super().update(output[-1][0], label)
 
 class EmbeddingSpaceValidator(TrainCallback):
-    def __init__(self, val_data, num_embeddings, accuracy_meter_fn, model_file=None):
+    def __init__(self, val_data, select, accuracy_meter_fn, model_file=None):
         self.val_data = val_data
         self.val_accuracy_meter = accuracy_meter_fn()
         self.train_accuracy_meter = accuracy_meter_fn()
-        self.num_embeddings=num_embeddings
-        self.names=["" for x in range(self.num_embeddings)]
+        self.select=select
+        self.names=["" for x in range(len(self.select) - 1)]
         
         self.train_accuracies = []
         self.batch_train_accuracies = []
@@ -50,8 +50,8 @@ class EmbeddingSpaceValidator(TrainCallback):
         self.val_losses = []
         self.val_bce_losses = []
         
-        self.batch_train_embedding_losses = [[] for x in range(self.num_embeddings)]
-        self.val_embedding_losses = [[] for x in range(self.num_embeddings)]
+        self.batch_train_embedding_losses = [[] for x in range(len(self.select) - 1)]
+        self.val_embedding_losses = [[] for x in range(len(self.select) - 1)]
         
         self.num_batches = 0
         self.num_epochs = 0
@@ -67,7 +67,7 @@ class EmbeddingSpaceValidator(TrainCallback):
             
         val_loss = LossMeter()
         val_bce_loss = LossMeter()
-        embedding_losses = [LossMeter() for x in range(self.num_embeddings)]
+        embedding_losses = [LossMeter() for x in range(len(self.select) - 1)]
         
         with EvalModel(session.model):
             for input, label, *_ in tqdm(self.val_data, desc="Validating", leave=True):
@@ -78,13 +78,14 @@ class EmbeddingSpaceValidator(TrainCallback):
                 
                 val_loss.update(step_loss, input.shape[0])
                 
-                val_bce_loss.update(F.cross_entropy(output[-1][0], label).data.cpu(), input.shape[0])
+                val_bce_loss.update(F.multi_margin_loss(output[-1][0], label).data.cpu(), input.shape[0])
                 
                 self.val_accuracy_meter.update(output, label)
 
-                for idx, (layer, embedding_loss) in enumerate(zip(output[:-1], embedding_losses)):
-                    self.names[idx] = layer[1]
-                    embedding_loss.update(batch_all_triplet_loss(layer[0].view(layer[0].size(0), -1), label, 1).data.cpu())
+                for idx, (layer, embedding_loss) in enumerate(zip(output[:-1], embedding_losses)):           
+                    if layer[1] in self.select:
+                        self.names[idx] = layer[1]
+                        embedding_loss.update(batch_all_triplet_loss(layer[0].view(layer[0].size(0), -1), label, 1).data.cpu())
         
         self.val_losses.append(val_loss.raw_avg.item())
         self.val_bce_losses.append(val_bce_loss.raw_avg.item())
@@ -125,39 +126,34 @@ class EmbeddingSpaceValidator(TrainCallback):
         batch_accuracy = self.train_accuracy_meter.update(output, label)
         self.batch_train_accuracies.append(batch_accuracy)
         self.batch_train_losses.append(lossMeter.loss.data.cpu().item())   
-        self.train_bce_loss_meter.update(F.cross_entropy(output[-1][0], label).data.cpu(), label.shape[0])
+        self.train_bce_loss_meter.update(F.multi_margin_loss(output[-1][0], label).data.cpu(), label.shape[0])
              
         for layer, embedding_loss in zip(output[:-1], self.batch_train_embedding_losses):
-            embedding_loss.append(batch_all_triplet_loss(layer[0].view(layer[0].size(0), -1), label, 1).data.cpu().item())
+            if layer[1] in self.select:
+                embedding_loss.append(batch_all_triplet_loss(layer[0].view(layer[0].size(0), -1), label, 1).data.cpu().item())
             
         self.num_batches += 1
             
     def plot(self):
         fig, (ax1, ax2, ax3, ax4) = plt.subplots(nrows=4, ncols=1, figsize=(15, 15))
-        
-        #ax.plot(np.arange(self.num_batches), self.batch_train_accuracies)
-        #legend.append("Train accuracy per batch")
-        
-        #ax.plot(np.arange(self.num_batches), self.batch_train_losses)
-        #legend.append("Train loss per batch")
             
-        ax1.plot(self.epochs, self.train_accuracies, '-o', label="Training accuracy per epoch")
+        ax1.plot(self.epochs, self.train_accuracies, label="Training accuracy per epoch")
 
-        ax1.plot(self.epochs, self.val_accuracies, '-o', label="Validation accuracy per epoch")
+        ax1.plot(self.epochs, self.val_accuracies, label="Validation accuracy per epoch")
         
-        ax2.plot(self.epochs, self.train_losses, '-o', label="Training loss per epoch")
+        ax2.plot(self.epochs, self.train_losses, label="Training loss per epoch")
         
-        ax2.plot(self.epochs, self.val_losses, '-o', label="Validation loss per epoch")
+        ax2.plot(self.epochs, self.val_losses, label="Validation loss per epoch")
         
-        ax3.plot(self.epochs, self.train_bce_losses, '-o', label="Training BCE loss per epoch")
+        ax3.plot(self.epochs, self.train_bce_losses, label="Training hinge loss per epoch")
         
-        ax3.plot(self.epochs, self.val_bce_losses, '-o', label="Validation BCE loss per epoch")
+        ax3.plot(self.epochs, self.val_bce_losses, label="Validation hinge loss per epoch")
         
         for embedding, name in zip(self.batch_train_embedding_losses, self.names):
             ax4.plot(np.arange(self.num_batches), embedding, label=f"Train {name} embedding triplet loss")
         
         for embedding, name in zip(self.val_embedding_losses, self.names):
-            ax4.plot(self.epochs, embedding, '-o', label=f"Validation {name} embedding triplet loss")
+            ax4.plot(self.epochs, embedding, label=f"Validation {name} embedding triplet loss")
             
         for ax in (ax1, ax2, ax3, ax4):
             box = ax.get_position()
