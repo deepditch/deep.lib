@@ -10,6 +10,8 @@ class TripletRegularizedLoss(nn.Module):
         self.alpha = alpha
         self.margin = margin
         self.loss_fn = loss_fn
+        self.select = select
+        self.triplet_loss_fn = triplet_loss_fn
         
     def forward(self, x, y):
         loss = self.loss_fn(x[-1][0], y)
@@ -17,8 +19,8 @@ class TripletRegularizedLoss(nn.Module):
         
         if (self.alpha > 0):
             for layer in x[:-1]:    
-                if select is none or layer[i] in select:      
-                    triplet += triplet_loss_fn(layer[0].view(layer[0].size(0), -1), y, self.margin)
+                if self.select is None or layer[i] in self.select:      
+                    triplet += self.triplet_loss_fn(layer[0].view(layer[0].size(0), -1), y, self.margin)
 
             triplet *= self.alpha
             
