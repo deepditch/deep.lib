@@ -51,7 +51,10 @@ class EmbeddingSpaceValidator(TrainCallback):
         self.val_losses = []
         self.val_bce_losses = []
         
-        self.batch_train_embedding_losses = [[] for x in range(self.num_embeddings)]
+        self.train_embedding_losses = [[] for x in range(self.num_embeddings)]
+        
+        self.train_embedding_loss_meters = [LossMeter() for x in range(self.num_embeddings)]
+        
         self.val_embedding_losses = [[] for x in range(self.num_embeddings)]
         
         self.num_batches = 0
@@ -115,6 +118,10 @@ class EmbeddingSpaceValidator(TrainCallback):
         self.epochs.append(self.num_batches)
         self.num_epochs += 1
         
+        for meter, loss in zip(self.train_embedding_loss_meters, self.train_embedding_losses)
+            loss.append(meter.raw_avg)
+            meter.reset()
+        
         print("\nval accuracy: ", round(self.val_accuracies[-1], 4),
               "\ntrain loss: ", round(self.train_losses[-1], 4) , 
               " train BCE : ", round(self.train_bce_losses[-1], 4) ,       
@@ -128,8 +135,8 @@ class EmbeddingSpaceValidator(TrainCallback):
         self.batch_train_losses.append(lossMeter.loss.data.cpu().item())   
         self.train_bce_loss_meter.update(F.cross_entropy(output[-1][0], label).data.cpu(), label.shape[0])
              
-        for layer, embedding_loss in zip(output[:-1], self.batch_train_embedding_losses):
-            embedding_loss.append(batch_all_triplet_loss(layer[0].view(layer[0].size(0), -1), label, 1).data.cpu().item())
+        for layer, loss_meter in zip(output[:-1], self.train_embedding_loss_meters):
+            loss_meter.update(batch_all_triplet_loss(layer[0].view(layer[0].size(0), -1), label, 1).data.cpu().item())
             
         self.num_batches += 1
             
@@ -154,8 +161,8 @@ class EmbeddingSpaceValidator(TrainCallback):
         
         ax3.plot(self.epochs, self.val_bce_losses, '-o', label="Validation BCE loss per epoch")
         
-        for embedding, name in zip(self.batch_train_embedding_losses, self.names):
-            ax4.plot(np.arange(self.num_batches), embedding, label=f"Train {name} embedding triplet loss")
+        for embedding, name in zip(self.train_embedding_losses, self.names):
+            ax4.plot(self.epochs, embedding, label=f"Train {name} embedding triplet loss")
         
         for embedding, name in zip(self.val_embedding_losses, self.names):
             ax4.plot(self.epochs, embedding, '-o', label=f"Validation {name} embedding triplet loss")
