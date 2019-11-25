@@ -146,7 +146,7 @@ class EmbeddingSpaceValidator(TrainCallback):
     def plot(self, title="", file=None):
         fig, (ax1, ax2, ax3, ax4) = plt.subplots(nrows=4, ncols=1, figsize=(15, 15))
 
-        fig.suptitle(f"{title}  : Best Accuracy {np.max(self.val_accuracies)}, fontsize=14)
+        fig.suptitle(f"{title} : Best Accuracy {np.max(self.val_accuracies)}", fontsize=14)
             
         ax1.set_title(f"Accuracy per epoch")
 
