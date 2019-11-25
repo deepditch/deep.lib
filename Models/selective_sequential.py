@@ -9,6 +9,7 @@ import util
 from Loss.triplet import *
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm_notebook as tqdm
+import numpy as np
 
 class SelectiveSequential(nn.Module):
     def __init__(self, to_select, modules_dict):
@@ -82,7 +83,7 @@ class EmbeddingSpaceValidator(TrainCallback):
                 
                 val_loss.update(step_loss, input.shape[0])
                 
-                val_bce_loss.update(F.multi_margin_loss(output[-1][0], label).data.cpu(), input.shape[0])
+                val_bce_loss.update(F.cross_entropy(output[-1][0], label).data.cpu(), input.shape[0])
                 
                 self.val_accuracy_meter.update(output, label)
 
@@ -134,7 +135,7 @@ class EmbeddingSpaceValidator(TrainCallback):
         batch_accuracy = self.train_accuracy_meter.update(output, label)
         self.batch_train_accuracies.append(batch_accuracy)
         self.batch_train_losses.append(lossMeter.loss.data.cpu().item())   
-        self.train_bce_loss_meter.update(F.multi_margin_loss(output[-1][0], label).data.cpu(), label.shape[0])
+        self.train_bce_loss_meter.update(F.cross_entropy(output[-1][0], label).data.cpu(), label.shape[0])
              
         for layer, loss_meter in zip(output[:-1], self.train_embedding_loss_meters):
             if layer[1] in self.select:
@@ -142,26 +143,36 @@ class EmbeddingSpaceValidator(TrainCallback):
             
         self.num_batches += 1
             
-    def plot(self):
+    def plot(self, title="", file=None):
         fig, (ax1, ax2, ax3, ax4) = plt.subplots(nrows=4, ncols=1, figsize=(15, 15))
-            
-        ax1.plot(self.epochs, self.train_accuracies, label="Training accuracy per epoch")
 
-        ax1.plot(self.epochs, self.val_accuracies, label="Validation accuracy per epoch")
+        fig.suptitle(f"{title}  : Best Accuracy {np.max(self.val_accuracies)}, fontsize=14)
+            
+        ax1.set_title(f"Accuracy per epoch")
+
+        ax1.plot(self.epochs, self.train_accuracies, label="Training")
+
+        ax1.plot(self.epochs, self.val_accuracies, label="Validation")
+
+        ax2.set_title(f"Loss per epoch")
         
-        ax2.plot(self.epochs, self.train_losses, label="Training loss per epoch")
+        ax2.plot(self.epochs, self.train_losses, label="Training")
         
-        ax2.plot(self.epochs, self.val_losses, label="Validation loss per epoch")
+        ax2.plot(self.epochs, self.val_losses, label="Validation")
+
+        ax2.set_title(f"Unregularized hinge loss loss per epoch")
         
-        ax3.plot(self.epochs, self.train_bce_losses, label="Training hinge loss per epoch")
+        ax3.plot(self.epochs, self.train_bce_losses, label="Training")
         
-        ax3.plot(self.epochs, self.val_bce_losses, label="Validation hinge loss per epoch")
+        ax3.plot(self.epochs, self.val_bce_losses, label="Validation")
         
+        ax4.set_title("Triplet loss per epoch")
+
         for embedding, name in zip(self.train_embedding_losses, self.names):
-            ax4.plot(self.epochs, embedding, label=f"Train {name} embedding triplet loss")
+            ax4.plot(self.epochs, embedding, label=f"Training: {name}")
         
         for embedding, name in zip(self.val_embedding_losses, self.names):
-            ax4.plot(self.epochs, embedding, label=f"Validation {name} embedding triplet loss")
+            ax4.plot(self.epochs, embedding, label=f"Validation: {name}")
             
         for ax in (ax1, ax2, ax3, ax4):
             box = ax.get_position()
@@ -169,6 +180,8 @@ class EmbeddingSpaceValidator(TrainCallback):
             ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))   
 
         plt.show()
+
+        if file is not None: fig.savefig(file)
 
 
 def tensorboard_embeddings(model, select, dataloader, targets, images, board='./runs'):
