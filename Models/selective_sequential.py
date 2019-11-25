@@ -126,9 +126,9 @@ class EmbeddingSpaceValidator(TrainCallback):
         
         print("\nval accuracy: ", round(self.val_accuracies[-1], 4),
               "\ntrain loss: ", round(self.train_losses[-1], 4) , 
-              " train BCE : ", round(self.train_bce_losses[-1], 4) ,       
+              " train hinge loss : ", round(self.train_bce_losses[-1], 4) ,       
               "\nvalid loss: ", round(self.val_losses[-1], 4), 
-              " valid BCE : ", round(self.val_bce_losses[-1], 4))
+              " valid hinge loss : ", round(self.val_bce_losses[-1], 4))
     
     def on_batch_end(self, session, lossMeter, output, label):
         label = Variable(util.to_gpu(label))
