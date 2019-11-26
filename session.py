@@ -57,7 +57,7 @@ class LossMeter(object):
 
 
 class Session():
-    def __init__(self, model, criterion, optim_fn, log=True, lrs=1e-3):
+    def __init__(self, model, criterion, optim_fn, lrs=1e-3, log=True):
         self.model = util.to_gpu(model)
         self.criterion = criterion    
         self.optim_fn = optim_fn
