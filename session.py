@@ -57,7 +57,7 @@ class LossMeter(object):
 
 
 class Session():
-    def __init__(self, model, criterion, optim_fn, lrs=1e-3):
+    def __init__(self, model, criterion, optim_fn, log=True, lrs=1e-3):
         self.model = util.to_gpu(model)
         self.criterion = criterion    
         self.optim_fn = optim_fn
@@ -65,6 +65,7 @@ class Session():
         self.optimizer = self.optim_fn(param_arr) # Initialize with learning rate of 0
         self.set_lr(lrs) # Update learning rate from passed lrs
         self.running = False
+        self.log=log
 
     def save(self, name):
         if not name.endswith('.ckpt.tar'): name += '.ckpt.tar'
@@ -129,7 +130,7 @@ class Session():
         loss = self.criterion(outputs, label)
         loss.backward()                                             # Calculate new gradient
         self.optimizer.step()                                       # Update model parameters
-        return util.to_cpu(loss.data), outputs                      # Return loss value
+        return loss.data, outputs                                   # Return loss valur
 
     def run(self, schedule, epochs):
         self.running = True
@@ -143,7 +144,8 @@ class Session():
                 if not self.running: break
                 for cb in schedule.callbacks: cb.on_batch_begin(self)
                 step_loss, outputs = self.step(input, label)  
-                lossMeter.update(step_loss, input.shape[0])
+                if (self.log)
+                    lossMeter.update(util.to_cpu(step_loss), input.shape[0])
                 for cb in schedule.callbacks: cb.on_batch_end(self, lossMeter, outputs, label)
             for cb in schedule.callbacks: cb.on_epoch_end(self, lossMeter)      
         for cb in schedule.callbacks: cb.on_train_end(self)   

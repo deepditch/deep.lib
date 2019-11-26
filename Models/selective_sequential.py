@@ -126,9 +126,9 @@ class EmbeddingSpaceValidator(TrainCallback):
         
         print("\nval accuracy: ", round(self.val_accuracies[-1], 4),
               "\ntrain loss: ", round(self.train_losses[-1], 4) , 
-              " train hinge loss : ", round(self.train_bce_losses[-1], 4) ,       
+              " train cross entropy loss : ", round(self.train_bce_losses[-1], 4) ,       
               "\nvalid loss: ", round(self.val_losses[-1], 4), 
-              " valid hinge loss : ", round(self.val_bce_losses[-1], 4))
+              " valid cross entropy loss : ", round(self.val_bce_losses[-1], 4))
     
     def on_batch_end(self, session, lossMeter, output, label):
         label = Variable(util.to_gpu(label))
@@ -160,7 +160,7 @@ class EmbeddingSpaceValidator(TrainCallback):
         
         ax2.plot(self.epochs, self.val_losses, label="Validation")
 
-        ax2.set_title(f"Unregularized hinge loss loss per epoch")
+        ax2.set_title(f"Cross entropy loss per epoch")
         
         ax3.plot(self.epochs, self.train_bce_losses, label="Training")
         
