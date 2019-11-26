@@ -107,6 +107,7 @@ class NHotAccuracy(_AccuracyMeter):
 
         self.update_from_numpy(preds, labels)       
 
+
 class Validator(TrainCallback):
     def __init__(self, val_data, accuracy_meter=None, save_best=False, model_dir='./'):
         self.val_data = val_data
@@ -139,7 +140,7 @@ class Validator(TrainCallback):
         if self.save_best and val_accuracy > self.best_accuracy:
             self.best_accuracy = val_accuracy
             session.save(f'{self.model_dir}/best-{self.batch}-{round(self.best_accuracy.item(), 6)}')
-        elif val_accuracy > self.best_accuracy
+        elif val_accuracy > self.best_accuracy:
             self.best_accuracy = val_accuracy
 
         if lossMeter is not None:
