@@ -144,7 +144,7 @@ class Session():
                 if not self.running: break
                 for cb in schedule.callbacks: cb.on_batch_begin(self)
                 step_loss, outputs = self.step(input, label)  
-                if (self.log)
+                if (self.log):
                     lossMeter.update(util.to_cpu(step_loss), input.shape[0])
                 for cb in schedule.callbacks: cb.on_batch_end(self, lossMeter, outputs, label)
             for cb in schedule.callbacks: cb.on_epoch_end(self, lossMeter)      
