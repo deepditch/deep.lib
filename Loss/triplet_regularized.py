@@ -19,7 +19,7 @@ class TripletRegularizedLoss(nn.Module):
         
         if (self.alpha > 0):
             for layer in x[:-1]:    
-                if self.select is None or layer[i] in self.select:      
+                if self.select is None or layer[1] in self.select:      
                     triplet += self.triplet_loss_fn(layer[0].view(layer[0].size(0), -1), y, self.margin)
 
             triplet *= self.alpha
