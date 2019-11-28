@@ -75,7 +75,7 @@ class EmbeddingSpaceValidator(TrainCallback):
         embedding_losses = [LossMeter() for x in range(len(self.select) - 1)]
         
         with EvalModel(session.model):
-            for input, label, *_ in tqdm(self.val_data, desc="Validating", leave=True):
+            for input, label, *_ in tqdm(self.val_data, desc="Validating", leave=False):
                 label = Variable(util.to_gpu(label))
                 output = session.forward(input)
                 

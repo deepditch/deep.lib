@@ -124,7 +124,7 @@ class Validator(TrainCallback):
             self.accuracy_meter.reset()
         valLoss = sess.LossMeter()
         with sess.EvalModel(session.model):
-            for input, label, *_ in tqdm(self.val_data, desc="Validating", leave=True):
+            for input, label, *_ in tqdm(self.val_data, desc="Validating", leave=False):
                 if isinstance(label, dict):
                     label = {key: Variable(value) for key, value in label.items()}  
                 else:
