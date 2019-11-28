@@ -140,6 +140,8 @@ class Validator(TrainCallback):
         if self.save_best and val_accuracy > self.best_accuracy:
             self.best_accuracy = val_accuracy
             session.save(f'{self.model_dir}/best-{self.batch}-{round(self.best_accuracy.item(), 6)}')
+        elif val_accuracy > self.best_accuracy:
+            self.best_accuracy = val_accuracy
 
         if lossMeter is not None:
             tqdm.write(f"Training Loss: {lossMeter.debias} Validaton Loss: {valLoss.raw_avg} Validation Accuracy: {val_accuracy}")
