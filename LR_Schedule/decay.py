@@ -1,4 +1,5 @@
 from LR_Schedule.lr_scheduler import _LRScheduler, _OnBatchLRScheduler
+import numpy as np
 
 class LearningRateDecay(_OnBatchLRScheduler):
     '''Learning rate decay schedule'''
