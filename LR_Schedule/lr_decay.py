@@ -4,6 +4,7 @@ import torch.optim as optim
 from LR_Schedule.lr_scheduler import _LRScheduler, _OnBatchLRScheduler
 import session
 import math
+import numpy as np
 
 class LearningRateDecay(_OnBatchLRScheduler):
     '''Learning rate decay schedule'''
@@ -17,13 +18,14 @@ class LearningRateDecay(_OnBatchLRScheduler):
         assert np.sum(intervals) == 1
 
         self.thresholds = [0]
+        self.idx = 0
 
         for i, interval in enumerate(intervals):
             if self.thresholds[i] >= self.iteration: self.idx == i
             self.thresholds.append(self.thresholds[i] + self.iterations*interval)
 
     def get_lr(self):        
-        if idx < len(self.thresholds) - 1 and self.thresholds[idx+1] < self.iteration:
+        if self.idx < len(self.thresholds)-2 and self.thresholds[self.idx+1] < self.iteration:
             self.idx += 1
 
         return self.lrs[self.idx]
