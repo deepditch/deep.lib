@@ -99,7 +99,7 @@ class EmbeddingSpaceValidator(TrainCallback):
 
         if self.model_file != None and accuracy > self.best_accuracy:
             session.save(self.model_file)
-            self.base_accuracy = accuracy
+            self.best_accuracy = accuracy
         
         self.val_accuracies.append(accuracy)
               
