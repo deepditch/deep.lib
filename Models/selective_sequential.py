@@ -48,9 +48,9 @@ class EmbeddingSpaceValidator(TrainCallback):
         
         self.train_losses = []
         self.batch_train_losses = []
-        self.train_bce_losses = []
+        self.train_raw_losses = []
         self.val_losses = []
-        self.val_bce_losses = []
+        self.val_raw_losses = []
         
         self.batch_train_embedding_losses = [[] for x in range(len(self.select) - 1)]
         self.train_embedding_losses = [[] for x in range(len(self.select) - 1)]
@@ -71,7 +71,7 @@ class EmbeddingSpaceValidator(TrainCallback):
         self.val_accuracy_meter.reset()
             
         val_loss = LossMeter()
-        val_bce_loss = LossMeter()
+        val_raw_loss = LossMeter()
         embedding_losses = [LossMeter() for x in range(len(self.select) - 1)]
         
         with EvalModel(session.model):
@@ -83,7 +83,7 @@ class EmbeddingSpaceValidator(TrainCallback):
                 
                 val_loss.update(step_loss, input.shape[0])
                 
-                val_bce_loss.update(F.cross_entropy(output[-1][0], label).data.cpu(), input.shape[0])
+                val_raw_loss.update(F.multi_margin_loss(output[-1][0], label).data.cpu(), input.shape[0])
                 
                 self.val_accuracy_meter.update(output, label)
 
@@ -93,7 +93,7 @@ class EmbeddingSpaceValidator(TrainCallback):
                         embedding_loss.update(batch_all_triplet_loss(layer[0].view(layer[0].size(0), -1), label, 1).data.cpu())
         
         self.val_losses.append(val_loss.raw_avg.item())
-        self.val_bce_losses.append(val_bce_loss.raw_avg.item())
+        self.val_raw_losses.append(val_raw_loss.raw_avg.item())
          
         accuracy = self.val_accuracy_meter.accuracy()
 
@@ -108,13 +108,13 @@ class EmbeddingSpaceValidator(TrainCallback):
         
     def on_epoch_begin(self, session):
         self.train_accuracy_meter.reset()     
-        self.train_bce_loss_meter = LossMeter()
+        self.train_raw_loss_meter = LossMeter()
         
     def on_epoch_end(self, session, lossMeter): 
         self.train_accuracies.append(self.train_accuracy_meter.accuracy())
         self.train_losses.append(lossMeter.debias.data.cpu().item())
         
-        self.train_bce_losses.append(self.train_bce_loss_meter.raw_avg.data.cpu().item())
+        self.train_raw_losses.append(self.train_raw_loss_meter.raw_avg.data.cpu().item())
         
         self.run(session, lossMeter) 
         self.epochs.append(self.num_batches)
@@ -126,16 +126,16 @@ class EmbeddingSpaceValidator(TrainCallback):
         
         print("\nval accuracy: ", round(self.val_accuracies[-1], 4),
               "\ntrain loss: ", round(self.train_losses[-1], 4) , 
-              " train cross entropy loss : ", round(self.train_bce_losses[-1], 4) ,       
+              " train cross entropy loss : ", round(self.train_raw_losses[-1], 4) ,       
               "\nvalid loss: ", round(self.val_losses[-1], 4), 
-              " valid cross entropy loss : ", round(self.val_bce_losses[-1], 4))
+              " valid cross entropy loss : ", round(self.val_raw_losses[-1], 4))
     
     def on_batch_end(self, session, lossMeter, output, label):
         label = Variable(util.to_gpu(label))
         batch_accuracy = self.train_accuracy_meter.update(output, label)
         self.batch_train_accuracies.append(batch_accuracy)
         self.batch_train_losses.append(lossMeter.loss.data.cpu().item())   
-        self.train_bce_loss_meter.update(F.cross_entropy(output[-1][0], label).data.cpu(), label.shape[0])
+        self.train_raw_loss_meter.update(F.multi_margin_loss(output[-1][0], label).data.cpu(), label.shape[0])
              
         for layer, loss_meter in zip(output[:-1], self.train_embedding_loss_meters):
             if layer[1] in self.select:
@@ -148,25 +148,25 @@ class EmbeddingSpaceValidator(TrainCallback):
 
         fig.suptitle(f"{title} : Best Accuracy {np.max(self.val_accuracies)}", fontsize=14)
             
-        ax1.set_title(f"Accuracy per epoch")
+        ax1.set_title(f"Accuracy per Iteration")
 
         ax1.plot(self.epochs, self.train_accuracies, label="Training")
 
         ax1.plot(self.epochs, self.val_accuracies, label="Validation")
 
-        ax2.set_title(f"Loss per epoch")
+        ax2.set_title(f"Loss per Iteration")
         
         ax2.plot(self.epochs, self.train_losses, label="Training")
         
         ax2.plot(self.epochs, self.val_losses, label="Validation")
 
-        ax2.set_title(f"Cross entropy loss per epoch")
+        ax3.set_title(f"Multi-class Hinge Loss per Iteration")
         
-        ax3.plot(self.epochs, self.train_bce_losses, label="Training")
+        ax3.plot(self.epochs, self.train_raw_losses, label="Training")
         
-        ax3.plot(self.epochs, self.val_bce_losses, label="Validation")
+        ax3.plot(self.epochs, self.val_raw_losses, label="Validation")
         
-        ax4.set_title("Triplet loss per epoch")
+        ax4.set_title("Triplet Loss per Iteration")
 
         for embedding, name in zip(self.train_embedding_losses, self.names):
             ax4.plot(self.epochs, embedding, label=f"Training: {name}")
