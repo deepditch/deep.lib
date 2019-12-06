@@ -1,3 +1,5 @@
+# Borrowed from this blog post: https://omoindrot.github.io/triplet-loss
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
