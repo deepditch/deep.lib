@@ -15,7 +15,7 @@ class LearningRateDecay(_OnBatchLRScheduler):
         self.intervals = intervals
         self.lrs = lrs
 
-        assert np.sum(intervals) == 1
+        assert 1-.01 <= np.sum(intervals) <= 1+.01
 
         self.thresholds = [0]
         self.idx = 0
