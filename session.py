@@ -6,6 +6,9 @@ import util
 import callbacks
 from tqdm import tqdm_notebook as tqdm
 import os
+import time
+import pickle
+from threading import Thread
 
 class TrainModel():
     def __init__(self, model):
@@ -65,21 +68,34 @@ class Session():
         self.optimizer = self.optim_fn(param_arr, **kwargs) # Initialize with learning rate of 0
         self.set_lr(lrs) # Update learning rate from passed lrs
         self.running = False
-        self.log=log
+        self.log = log
+        self.epoch = 0
 
-    def save(self, name):
+    def _save(self, name):
         if not name.endswith('.ckpt.tar'): name += '.ckpt.tar'
+
         state = {
             'model': self.model.state_dict(),
             'optimizer' : self.optimizer.state_dict(),
+            'schedule': self.schedule.state_dict() if self.schedule != None else None,
+            'epoch': self.epoch
         }
+
         torch.save(state, name)
+
+    def save(self, name):
+        a = Thread(target=Session._save, args=(self, name))
+        a.start()
+        a.join()
 
     def load(self, name, map_location=None):
         if not name.endswith('.ckpt.tar'): name += '.ckpt.tar' 
         checkpoint = torch.load(name, map_location=map_location)
         self.model.load_state_dict(checkpoint['model'])
         self.optimizer.load_state_dict(checkpoint['optimizer'])
+        self.epoch = checkpoint['epoch']
+        if checkpoint['schedule'] != None:
+            self.schedule.load_state_dict(checkpoint['schedule'])
 
     def freeze_to(self, layer_index):
         layers = list(self.model.children())
@@ -130,24 +146,49 @@ class Session():
         loss = self.criterion(outputs, label)
         loss.backward()                                             # Calculate new gradient
         self.optimizer.step()                                       # Update model parameters
-        return loss.data, outputs                                   # Return loss valur
+        return loss.data, outputs                                   # Return loss valur      
 
-    def run(self, schedule, epochs):
+    def run(self, schedule, checkpoint_file=None):
         self.running = True
+        self.schedule = schedule
+
+        if checkpoint_file != None and not checkpoint_file.endswith('.ckpt.tar'): checkpoint_file += '.ckpt.tar'
+        if checkpoint_file != None and os.path.exists(checkpoint_file): 
+            print("\n--- LOADING CHECKPOINT ---")
+            self.load(checkpoint_file)
+
         lossMeter = LossMeter()
-        for cb in schedule.callbacks: cb.on_train_begin(self)       
-        for epoch in tqdm(range(epochs), desc="Epochs"):
+
+        start = time.time()
+
+        if self.epoch == 0: 
+            for cb in schedule.callbacks: cb.on_train_begin(self)       
+        
+        for epoch in tqdm(range(schedule.epochs), desc="Epochs", initial=self.epoch):
             if not self.running: break
+            
             for cb in schedule.callbacks: cb.on_epoch_begin(self)
-            running_loss = 0
+            
             for input, label, *_ in tqdm(schedule.data, desc="Steps", leave=False):
                 if not self.running: break
                 for cb in schedule.callbacks: cb.on_batch_begin(self)
                 step_loss, outputs = self.step(input, label)  
-                if (self.log):
-                    lossMeter.update(util.to_cpu(step_loss), input.shape[0])
+                if self.log: lossMeter.update(util.to_cpu(step_loss), input.shape[0])
                 for cb in schedule.callbacks: cb.on_batch_end(self, lossMeter, outputs, label)
+            
             for cb in schedule.callbacks: cb.on_epoch_end(self, lossMeter)      
+
+            self.epoch += 1
+
+            if checkpoint_file != None: 
+                end = time.time()
+                elapsed = end - start
+
+                if elapsed > 5 * 60:
+                    start = end
+                    self.save(checkpoint_file)
+                    print("--- CHECKPOINT ---")
+
         for cb in schedule.callbacks: cb.on_train_end(self)   
 
     def train(self, schedule, epochs):      
@@ -159,9 +200,18 @@ class Session():
     
 
 class TrainingSchedule():
-    def __init__(self, data, callbacks=[]):
+    def __init__(self, data, epochs, callbacks=[]):
         self.data = data
         self.callbacks = callbacks
+        self.epochs = epochs
 
     def add_callback(self, callback):
         self.callbacks.append(callback)
+
+    def state_dict(self):
+        return pickle.dumps({'callbacks': self.callbacks, 'epochs': self.epochs})
+
+    def load_state_dict(self, serialized_callbacks):
+        state_dict = pickle.loads(serialized_callbacks)
+        self.callbacks = state_dict['callbacks']
+        self.epochs = state_dict['epochs']
