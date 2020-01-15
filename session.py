@@ -60,7 +60,7 @@ class LossMeter(object):
 
 
 class Session():
-    def __init__(self, model, criterion, optim_fn, lrs=1e-3, log=True, **kwargs):
+    def __init__(self, model, criterion, optim_fn, lrs=1e-3, log=True, reset=False, **kwargs):
         self.model = util.to_gpu(model)
         self.criterion = criterion    
         self.optim_fn = optim_fn
@@ -70,6 +70,7 @@ class Session():
         self.running = False
         self.log = log
         self.epoch = 0
+        self.reset = reset
 
     def _save(self, name):
         if not name.endswith('.ckpt.tar'): name += '.ckpt.tar'
@@ -148,12 +149,12 @@ class Session():
         self.optimizer.step()                                       # Update model parameters
         return loss.data, outputs                                   # Return loss valur      
 
-    def run(self, schedule, checkpoint_file=None):
+    def run(self, schedule, checkpoint_file=None, reset=False):
         self.running = True
         self.schedule = schedule
 
         if checkpoint_file != None and not checkpoint_file.endswith('.ckpt.tar'): checkpoint_file += '.ckpt.tar'
-        if checkpoint_file != None and os.path.exists(checkpoint_file): 
+        if checkpoint_file != None and os.path.exists(checkpoint_file) and not reset: 
             print("\n--- LOADING CHECKPOINT ---")
             self.load(checkpoint_file)
 
