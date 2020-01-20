@@ -77,6 +77,15 @@ class Session():
 
         state = {
             'model': self.model.state_dict(),
+        }
+
+        torch.save(state, name)
+
+    def _checkpoint(self, name):
+        if not name.endswith('.ckpt.tar'): name += '.ckpt.tar'
+
+        state = {
+            'model': self.model.state_dict(),
             'optimizer' : self.optimizer.state_dict(),
             'schedule': self.schedule.state_dict() if self.schedule != None else None,
             'epoch': self.epoch
@@ -89,14 +98,18 @@ class Session():
         a.start()
         a.join()
 
+    def checkpoint(self, name):
+        a = Thread(target=Session._checkpoint, args=(self, name))
+        a.start()
+        a.join()
+
     def load(self, name, map_location=None):
         if not name.endswith('.ckpt.tar'): name += '.ckpt.tar' 
         checkpoint = torch.load(name, map_location=map_location)
-        self.model.load_state_dict(checkpoint['model'])
-        self.optimizer.load_state_dict(checkpoint['optimizer'])
-        self.epoch = checkpoint['epoch']
-        if checkpoint['schedule'] != None:
-            self.schedule.load_state_dict(checkpoint['schedule'])
+        if checkpoint['model'] != None: self.model.load_state_dict(checkpoint['model'])
+        if checkpoint['optimizer'] != None: self.optimizer.load_state_dict(checkpoint['optimizer'])
+        if checkpoint['epoch'] != None: self.epoch = checkpoint['epoch']
+        if checkpoint['schedule'] != None and self.schedule != None: self.schedule.load_state_dict(checkpoint['schedule'])
 
     def freeze_to(self, layer_index):
         layers = list(self.model.children())
@@ -155,7 +168,7 @@ class Session():
 
         if checkpoint_file != None and not checkpoint_file.endswith('.ckpt.tar'): checkpoint_file += '.ckpt.tar'
         if checkpoint_file != None and os.path.exists(checkpoint_file) and not reset: 
-            print("\n--- LOADING CHECKPOINT ---")
+            print("--- LOADING CHECKPOINT ---")
             self.load(checkpoint_file)
 
         lossMeter = LossMeter()
@@ -187,8 +200,8 @@ class Session():
 
                 if elapsed > 5 * 60:
                     start = end
-                    self.save(checkpoint_file)
-                    print("--- CHECKPOINT ---")
+                    self.checkpoint(checkpoint_file)
+                    print("\n--- CHECKPOINT ---")
 
         for cb in schedule.callbacks: cb.on_train_end(self)   
 
@@ -210,9 +223,11 @@ class TrainingSchedule():
         self.callbacks.append(callback)
 
     def state_dict(self):
-        return pickle.dumps({'callbacks': self.callbacks, 'epochs': self.epochs})
+        callbacks_dict = [callback.state_dict for callback in self.callbacks]
+        return pickle.dumps({'callbacks': callbacks_dict, 'epochs': self.epochs})
 
     def load_state_dict(self, serialized_callbacks):
         state_dict = pickle.loads(serialized_callbacks)
-        self.callbacks = state_dict['callbacks']
+
+        for cb, state_dict in zip(self.callbacks, state_dict['callbacks']): cb.load_state_dict(state_dict)
         self.epochs = state_dict['epochs']

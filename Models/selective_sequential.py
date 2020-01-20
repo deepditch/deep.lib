@@ -67,6 +67,9 @@ class EmbeddingSpaceValidator(TrainCallback):
 
         self.best_accuracy = 0
 
+    def state_dict(self): return ""
+    def load_state_dict(self): pass
+
     def run(self, session, lossMeter=None):
         self.val_accuracy_meter.reset()
             

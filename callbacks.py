@@ -8,6 +8,7 @@ from torch.autograd import Variable
 import numpy as np
 import os
 import psutil
+import pickle
 from tqdm import tqdm
 
 
@@ -18,6 +19,8 @@ class TrainCallback:
     def on_batch_end(self, session, lossMeter, output, label): pass
     def on_epoch_end(self, session, lossMeter): pass
     def on_train_end(self, session): pass
+    def state_dict(self): return pickle.dumps(self.__dict__)
+    def load_state_dict(self, state_dict): self.__dict__.update(state_dict) 
         
 
 class Saver(TrainCallback):
