@@ -36,6 +36,7 @@ class CustomOneHotAccuracy(OneHotAccuracy):
 
 class EmbeddingSpaceValidator(TrainCallback):
     def __init__(self, val_data, select, accuracy_meter_fn, model_file=None):
+        super().__init__()
         self.val_data = val_data
         self.val_accuracy_meter = accuracy_meter_fn()
         self.train_accuracy_meter = accuracy_meter_fn()
