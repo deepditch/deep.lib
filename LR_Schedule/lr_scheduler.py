@@ -17,6 +17,9 @@ class _LRScheduler(TrainCallback):
 
         self.iteration = iteration
 
+    def state_dict():
+        return pickle.dumps({k: self.__dict__[k] for k in set(list(self.__dict__.keys())) - set(["session"]])})
+
     def get_lr(self): 
         '''Gets the next learning rate in the schedule
         
