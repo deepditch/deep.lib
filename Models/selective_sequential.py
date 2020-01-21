@@ -68,7 +68,7 @@ class EmbeddingSpaceValidator(TrainCallback):
 
         self.best_accuracy = 0
 
-    def state_dict():
+    def state_dict(self):
         return pickle.dumps({k: self.__dict__[k] for k in set(list(self.__dict__.keys())) - set(["val_data"])})
 
     def run(self, session, lossMeter=None):
