@@ -160,7 +160,7 @@ class Session():
         loss = self.criterion(outputs, label)
         loss.backward()                                             # Calculate new gradient
         self.optimizer.step()                                       # Update model parameters
-        return loss.data, outputs                                   # Return loss valur      
+        return loss.data, outputs                                   # Return loss value  
 
     def run(self, schedule, checkpoint_file=None, reset=False):
         self.running = True
@@ -205,9 +205,9 @@ class Session():
 
         for cb in schedule.callbacks: cb.on_train_end(self)   
 
-    def train(self, schedule, epochs):      
+    def train(self, schedule, checkpoint_file=None, reset=False):      
         with TrainModel(self.model):
-            self.run(schedule, epochs)
+            self.run(schedule, checkpoint_file, reset)
 
     def stop(self):
         self.running = False

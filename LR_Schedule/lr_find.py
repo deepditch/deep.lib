@@ -56,7 +56,7 @@ class LRFindScheduler(_OnBatchLRScheduler):
             ax_lr.plot(range(iterations), lr, 'b-')
 
 
-def lr_find(session, data, start_lr=None, end_lr=10):
+def lr_find(session, data, epochs=1, start_lr=None, end_lr=10):
     """Duplicates session and runs one epoch over data while linearly increasing the learning rate at each step.
     Plots the loss. This method can be used to find a learning rate by choosing a learning rate from the plot where
     the loss is decreasing.
@@ -71,8 +71,8 @@ def lr_find(session, data, start_lr=None, end_lr=10):
     """
 
     session.save('temp')
-    lr_scheduler = LRFindScheduler(len(data), start_lr, end_lr)
-    schedule = TrainingSchedule(data, [lr_scheduler])
-    session.train(schedule, 1)
+    lr_scheduler = LRFindScheduler(len(data) * epochs, start_lr, end_lr)
+    schedule = TrainingSchedule(data, epochs, [lr_scheduler])
+    session.train(schedule)
     lr_scheduler.plot()
     session.load('temp')

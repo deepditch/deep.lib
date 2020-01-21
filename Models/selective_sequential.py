@@ -10,6 +10,7 @@ from Loss.triplet import *
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm_notebook as tqdm
 import numpy as np
+import pickle
 
 class SelectiveSequential(nn.Module):
     def __init__(self, to_select, modules_dict):

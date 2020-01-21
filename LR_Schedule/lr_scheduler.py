@@ -4,6 +4,7 @@ import torch.optim as optim
 from callbacks import TrainCallback
 import matplotlib.pyplot as plt
 import copy
+import pickle
 
 class _LRScheduler(TrainCallback):
     '''An abstract class representing a learning rate schedule'''
