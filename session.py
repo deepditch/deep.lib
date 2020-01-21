@@ -226,8 +226,7 @@ class TrainingSchedule():
         callbacks_dict = [callback.state_dict() for callback in self.callbacks]
         return pickle.dumps({'callbacks': callbacks_dict, 'epochs': self.epochs})
 
-    def load_state_dict(self, serialized_callbacks):
-        state_dict = pickle.loads(serialized_callbacks)
-
-        for cb, state_dict in zip(self.callbacks, state_dict['callbacks']): cb.load_state_dict(state_dict)
+    def load_state_dict(self, serialized_state_dict):
+        state_dict = pickle.loads(serialized_state_dict)
+        for cb, cb_state_dict in zip(self.callbacks, state_dict['callbacks']): cb.load_state_dict(cb_state_dict)
         self.epochs = state_dict['epochs']
