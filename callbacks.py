@@ -20,7 +20,7 @@ class TrainCallback:
     def on_epoch_end(self, session, lossMeter): pass
     def on_train_end(self, session): pass
     def state_dict(self): return pickle.dumps(self.__dict__)
-    def load_state_dict(self, state_dict): self.__dict__.update(state_dict) 
+    def load_state_dict(self, state_dict): self.__dict__.update(pickle.loads(state_dict)) 
         
 
 class Saver(TrainCallback):

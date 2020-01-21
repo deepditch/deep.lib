@@ -106,10 +106,10 @@ class Session():
     def load(self, name, map_location=None):
         if not name.endswith('.ckpt.tar'): name += '.ckpt.tar' 
         checkpoint = torch.load(name, map_location=map_location)
-        if checkpoint['model'] != None: self.model.load_state_dict(checkpoint['model'])
-        if checkpoint['optimizer'] != None: self.optimizer.load_state_dict(checkpoint['optimizer'])
-        if checkpoint['epoch'] != None: self.epoch = checkpoint['epoch']
-        if checkpoint['schedule'] != None and self.schedule != None: self.schedule.load_state_dict(checkpoint['schedule'])
+        if 'model' in checkpoint: self.model.load_state_dict(checkpoint['model'])
+        if 'optimizer' in checkpoint: self.optimizer.load_state_dict(checkpoint['optimizer'])
+        if 'epoch' in checkpoint: self.epoch = checkpoint['epoch']
+        if 'schedule' in checkpoint and self.schedule != None: self.schedule.load_state_dict(checkpoint['schedule'])
 
     def freeze_to(self, layer_index):
         layers = list(self.model.children())
