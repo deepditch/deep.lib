@@ -125,7 +125,7 @@ class _OnEpochLRScheduler(_LRScheduler):
     def __init__(self, iteration=0):
         super().__init__(iteration)
 
-    def on_epoch_begin(self):
+    def on_epoch_begin(self, session):
         self.step(session)
 
 
@@ -135,5 +135,5 @@ class _OnBatchLRScheduler(_LRScheduler):
     def __init__(self, iteration=0):
         super().__init__(iteration)
 
-    def on_batch_begin(self):
+    def on_batch_begin(self, session):
         self.step(session)
