@@ -61,19 +61,18 @@ class _LRScheduler(TrainCallback):
                 have the 'initial_lr' key already set
         '''
 
-        self.session = session
         if self.iteration == 0:
-            for group in self.session.optimizer.param_groups:
+            for group in session.optimizer.param_groups:
                 group.setdefault('initial_lr', group['lr'])
         else:
-            for i, group in enumerate(self.session.optimizer.param_groups):
+            for i, group in enumerate(session.optimizer.param_groups):
                 if 'initial_lr' not in group:
                     raise KeyError("param 'initial_lr' is not specified "
                                    "in param_groups[{}] when resuming an optimizer".format(i))
 
-        self.base_lrs = list(map(lambda group: group['initial_lr'], self.session.optimizer.param_groups))
+        self.base_lrs = list(map(lambda group: group['initial_lr'], session.optimizer.param_groups))
 
-    def step(self, iteration=None):
+    def step(self, session, iteration=None):
         '''Increments self.iteration and updates the learning rate
         
         Keyword Arguments:
@@ -82,9 +81,9 @@ class _LRScheduler(TrainCallback):
 
         if iteration is not None:
             self.iteration = iteration    
-        self.session.set_lr(self.get_lr())
+        session.set_lr(self.get_lr())
         if self.should_get_mom():
-            self.session.set_mom(self.get_mom())
+            session.set_mom(self.get_mom())
         self.iteration += 1
 
     def plot(self, iterations=None, lrs=[1]):
@@ -126,8 +125,8 @@ class _OnEpochLRScheduler(_LRScheduler):
     def __init__(self, iteration=0):
         super().__init__(iteration)
 
-    def on_epoch_begin(self, session):
-        self.step()
+    def on_epoch_begin(self):
+        self.step(session)
 
 
 class _OnBatchLRScheduler(_LRScheduler):
@@ -136,5 +135,5 @@ class _OnBatchLRScheduler(_LRScheduler):
     def __init__(self, iteration=0):
         super().__init__(iteration)
 
-    def on_batch_begin(self, session):
-        self.step()
+    def on_batch_begin(self):
+        self.step(session)
