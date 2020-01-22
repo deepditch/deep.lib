@@ -228,5 +228,5 @@ class TrainingSchedule():
 
     def load_state_dict(self, serialized_state_dict):
         state_dict = pickle.loads(serialized_state_dict)
-        for cb, cb_state_dict in zip(self.callbacks, state_dict['callbacks']): cb.load_state_dict(state_dict)
+        for cb, cb_state_dict in zip(self.callbacks, state_dict['callbacks']): cb.load_state_dict(cb_state_dict)
         self.epochs = state_dict['epochs']
