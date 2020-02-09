@@ -162,7 +162,7 @@ class Session():
         self.optimizer.step()                                       # Update model parameters
         return loss.data, outputs                                   # Return loss value  
 
-    def run(self, schedule, checkpoint_file=None, reset=False):
+    def run(self, schedule, checkpoint_file=None, reset=False, ckpt_interval=5*60):
         self.running = True
         self.schedule = schedule
 
@@ -198,7 +198,7 @@ class Session():
                 end = time.time()
                 elapsed = end - start
 
-                if elapsed > 5 * 60:
+                if elapsed > ckpt_interval:
                     start = end
                     self.checkpoint(checkpoint_file)
                     print("\n--- CHECKPOINT ---")

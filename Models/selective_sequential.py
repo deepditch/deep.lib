@@ -60,8 +60,6 @@ class EmbeddingSpaceValidator(TrainCallback):
         
         self.num_batches = 0
         self.num_epochs = 0
-        
-        self.epochs = []
 
         self.model_file = model_file
 
@@ -70,7 +68,7 @@ class EmbeddingSpaceValidator(TrainCallback):
         self.writer = SummaryWriter(log_dir=tensorboard_dir) if tensorboard_dir is not None else None    
 
     def state_dict(self):
-        return pickle.dumps({k: self.__dict__[k] for k in set(list(self.__dict__.keys())) - set(["val_data"])})
+        return pickle.dumps({k: self.__dict__[k] for k in set(['num_batches', 'num_epochs', 'model_file', 'best_accuracy'])})
 
     def run(self, session, lossMeter=None):
         self.val_accuracy_meter.reset()
@@ -122,7 +120,6 @@ class EmbeddingSpaceValidator(TrainCallback):
         self.train_raw_losses.append(self.train_raw_loss_meter.raw_avg.data.cpu().item())
         
         self.run(session, lossMeter) 
-        self.epochs.append(self.num_batches)
         self.num_epochs += 1
         
         for meter, loss in zip(self.train_embedding_loss_meters, self.train_embedding_losses):
@@ -170,23 +167,23 @@ class EmbeddingSpaceValidator(TrainCallback):
         fig.suptitle(f"{title} : Best Accuracy {np.max(self.val_accuracies)}", fontsize=14)
             
         ax1.set_title(f"Accuracy per Epoch")
-        ax1.plot(self.epochs, self.train_accuracies, label="Training")
-        ax1.plot(self.epochs, self.val_accuracies, label="Validation")
+        ax1.plot(np.arange(0, self.num_epochs), self.train_accuracies, label="Training")
+        ax1.plot(np.arange(0, self.num_epochs), self.val_accuracies, label="Validation")
 
         ax2.set_title(f"Regularizezd Loss per Epoch")
-        ax2.plot(self.epochs, self.train_losses, label="Training")
-        ax2.plot(self.epochs, self.val_losses, label="Validation")
+        ax2.plot(np.arange(0, self.num_epochs), self.train_losses, label="Training")
+        ax2.plot(np.arange(0, self.num_epochs), self.val_losses, label="Validation")
 
         ax3.set_title(f"Unregularizezd Loss per Epoch")
-        ax3.plot(self.epochs, self.train_raw_losses, label="Training")   
-        ax3.plot(self.epochs, self.val_raw_losses, label="Validation")
+        ax3.plot(np.arange(0, self.num_epochs), self.train_raw_losses, label="Training")   
+        ax3.plot(np.arange(0, self.num_epochs), self.val_raw_losses, label="Validation")
         
         ax4.set_title("Triplet Loss per Epoch")
         for embedding, name in zip(self.train_embedding_losses, self.names):
-            ax4.plot(self.epochs, embedding, label=f"Training: {name}")
+            ax4.plot(np.arange(0, self.num_epochs), embedding, label=f"Training: {name}")
         
         for embedding, name in zip(self.val_embedding_losses, self.names):
-            ax4.plot(self.epochs, embedding, label=f"Validation: {name}")
+            ax4.plot(np.arange(0, self.num_epochs), embedding, label=f"Validation: {name}")
             
         for ax in (ax1, ax2, ax3, ax4):
             box = ax.get_position()
