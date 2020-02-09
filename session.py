@@ -205,7 +205,7 @@ class Session():
 
         for cb in schedule.callbacks: cb.on_train_end(self)   
 
-    def train(self, schedule, checkpoint_file=None, reset=False):      
+    def train(self, schedule, checkpoint_file=None, reset=False, ckpt_interval=5*60):      
         with TrainModel(self.model):
             self.run(schedule, checkpoint_file, reset)
 
