@@ -36,7 +36,7 @@ class CustomOneHotAccuracy(OneHotAccuracy):
         return super().update(output[-1][0], label)
 
 class EmbeddingSpaceValidator(TrainCallback):
-    def __init__(self, val_data, select, accuracy_meter_fn, model_file=None):
+    def __init__(self, val_data, select, accuracy_meter_fn, model_file=None, tensorboard_dir=None):
         super().__init__()
         self.val_data = val_data
         self.val_accuracy_meter = accuracy_meter_fn()
@@ -45,16 +45,14 @@ class EmbeddingSpaceValidator(TrainCallback):
         self.names=["" for x in range(len(self.select) - 1)]
         
         self.train_accuracies = []
-        self.batch_train_accuracies = []
         self.val_accuracies = []
         
         self.train_losses = []
-        self.batch_train_losses = []
         self.train_raw_losses = []
+
         self.val_losses = []
         self.val_raw_losses = []
         
-        self.batch_train_embedding_losses = [[] for x in range(len(self.select) - 1)]
         self.train_embedding_losses = [[] for x in range(len(self.select) - 1)]
         
         self.train_embedding_loss_meters = [LossMeter() for x in range(len(self.select) - 1)]
@@ -68,6 +66,8 @@ class EmbeddingSpaceValidator(TrainCallback):
         self.model_file = model_file
 
         self.best_accuracy = 0
+
+        self.writer = SummaryWriter(log_dir=tensorboard_dir) if tensorboard_dir is not None else None    
 
     def state_dict(self):
         return pickle.dumps({k: self.__dict__[k] for k in set(list(self.__dict__.keys())) - set(["val_data"])})
@@ -85,7 +85,7 @@ class EmbeddingSpaceValidator(TrainCallback):
                 output = session.forward(input)
                 
                 step_loss = session.criterion(output, label).data.cpu()
-                
+          
                 val_loss.update(step_loss, input.shape[0])
                 
                 val_raw_loss.update(F.multi_margin_loss(output[-1][0], label).data.cpu(), input.shape[0])
@@ -130,16 +130,25 @@ class EmbeddingSpaceValidator(TrainCallback):
             meter.reset()
         
         print("\nval accuracy: ", round(self.val_accuracies[-1], 4),
+              "train accuracy: ", round(self.train_accuracies[-1], 4),
               "\ntrain loss: ", round(self.train_losses[-1], 4) , 
-              " train cross entropy loss : ", round(self.train_raw_losses[-1], 4) ,       
+              " train unreg loss : ", round(self.train_raw_losses[-1], 4) ,       
               "\nvalid loss: ", round(self.val_losses[-1], 4), 
-              " valid cross entropy loss : ", round(self.val_raw_losses[-1], 4))
+              " valid unreg loss : ", round(self.val_raw_losses[-1], 4))
+
+        if self.writer is not None:
+            self.writer.add_scalars('Loss/Regularized', {'Train':self.train_losses[-1],
+                                                        'Test':self.val_losses[-1]}, self.num_batches)
+
+            self.writer.add_scalars('Loss/Unregularized', {'Train':self.train_raw_losses[-1],
+                                                            'Test':self.val_raw_losses[-1]}, self.num_batches)
+
+            self.writer.add_scalars('Accuracy', {'Train':self.train_accuracies[-1],
+                                            'Test':self.val_accuracies[-1]}, self.num_batches)
     
     def on_batch_end(self, session, lossMeter, output, label):
         label = Variable(util.to_gpu(label))
-        batch_accuracy = self.train_accuracy_meter.update(output, label)
-        self.batch_train_accuracies.append(batch_accuracy)
-        self.batch_train_losses.append(lossMeter.loss.data.cpu().item())   
+        self.train_accuracy_meter.update(output, label)
         self.train_raw_loss_meter.update(F.multi_margin_loss(output[-1][0], label).data.cpu(), label.shape[0])
              
         for layer, loss_meter in zip(output[:-1], self.train_embedding_loss_meters):
@@ -147,32 +156,32 @@ class EmbeddingSpaceValidator(TrainCallback):
                 loss_meter.update(batch_all_triplet_loss(layer[0].view(layer[0].size(0), -1), label, 1).data.cpu().item())
             
         self.num_batches += 1
+
+        if self.writer is not None:
+            self.writer.add_scalars('Loss/Training Batch', {
+                'Regularized': lossMeter.loss,
+                'Unregularized': self.train_raw_loss_meter.loss
+            }, self.num_batches)
+
             
     def plot(self, title="", file=None):
         fig, (ax1, ax2, ax3, ax4) = plt.subplots(nrows=4, ncols=1, figsize=(15, 15))
 
         fig.suptitle(f"{title} : Best Accuracy {np.max(self.val_accuracies)}", fontsize=14)
             
-        ax1.set_title(f"Accuracy per Iteration")
-
+        ax1.set_title(f"Accuracy per Epoch")
         ax1.plot(self.epochs, self.train_accuracies, label="Training")
-
         ax1.plot(self.epochs, self.val_accuracies, label="Validation")
 
-        ax2.set_title(f"Loss per Iteration")
-        
+        ax2.set_title(f"Regularizezd Loss per Epoch")
         ax2.plot(self.epochs, self.train_losses, label="Training")
-        
         ax2.plot(self.epochs, self.val_losses, label="Validation")
 
-        ax3.set_title(f"Multi-class Hinge Loss per Iteration")
-        
-        ax3.plot(self.epochs, self.train_raw_losses, label="Training")
-        
+        ax3.set_title(f"Unregularizezd Loss per Epoch")
+        ax3.plot(self.epochs, self.train_raw_losses, label="Training")   
         ax3.plot(self.epochs, self.val_raw_losses, label="Validation")
         
-        ax4.set_title("Triplet Loss per Iteration")
-
+        ax4.set_title("Triplet Loss per Epoch")
         for embedding, name in zip(self.train_embedding_losses, self.names):
             ax4.plot(self.epochs, embedding, label=f"Training: {name}")
         

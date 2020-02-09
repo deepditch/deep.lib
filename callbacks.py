@@ -10,7 +10,7 @@ import os
 import psutil
 import pickle
 from tqdm import tqdm
-
+from torch.utils.tensorboard import SummaryWriter
 
 class TrainCallback:
     def on_train_begin(self, session): pass
@@ -49,9 +49,6 @@ class MemoryProfiler(TrainCallback):
         tqdm.write('process = %.2f total = %.2f available = %.2f used = %.2f free = %.2f percent = %.2f' % (proc, total, available, used, free, percent))
 
     def on_train_begin(self, session): self.print_profile("on_train_begin")
-    # def on_epoch_begin(self, session): self.print_profile("on_epoch_begin")
-    # def on_batch_begin(self, session): self.print_profile("on_batch_begin")
-    # def on_batch_end(self, session, lossMeter): self.print_profile("on_batch_end")
     def on_epoch_end(self, session, lossMeter): self.print_profile("on_epoch_end")
     def on_train_end(self, session): self.print_profile("on_train_end")
 
@@ -59,3 +56,15 @@ class MemoryProfiler(TrainCallback):
 class LossLogger(TrainCallback):
     def on_epoch_end(self, session, lossMeter): 
         tqdm.write(f"Training Loss: {lossMeter.debias}")
+
+class TensorboardLogger(TrainCallback):
+    def __init__(self, directory="./runs/", title="Loss/train"):
+        self.iteration = 0
+        self.writer = SummaryWriter(log_dir=directory)
+
+    def on_batch_end(self, session, lossMeter):
+        self.iteration += 1
+        self.writer.add_scalar('Loss/train', lossMeter.loss, self.iteration)
+
+    def __del__(self):
+        self.writer.close()

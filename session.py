@@ -212,7 +212,6 @@ class Session():
     def stop(self):
         self.running = False
     
-
 class TrainingSchedule():
     def __init__(self, data, epochs, callbacks=[]):
         self.data = data
