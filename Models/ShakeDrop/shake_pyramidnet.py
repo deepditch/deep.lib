@@ -23,7 +23,7 @@ class ShakeBasicBlock(nn.Module):
         h = self.branch(x)
         h = self.shake_drop(h)
         h0 = x if not self.downsampled else self.shortcut(x)
-        pad_zero = Variable(torch.zeros(h0.size(0), h.size(1) - h0.size(1), h0.size(2), h0.size(3)).type(type(h0))).cuda()
+        pad_zero = Variable(torch.zeros(h0.size(0), h.size(1) - h0.size(1), h0.size(2), h0.size(3)).type(h0.type())).cuda()
         h0 = torch.cat([h0, pad_zero], dim=1)
 
         return h + h0

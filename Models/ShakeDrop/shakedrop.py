@@ -11,7 +11,7 @@ class ShakeDropFunction(torch.autograd.Function):
             gate = torch.cuda.FloatTensor([0]).bernoulli_(1 - p_drop)
             ctx.save_for_backward(gate)
             if gate.item() == 0:
-                alpha = torch.cuda.FloatTensor(x.size(0)).uniform_(*alpha_range)
+                alpha = torch.cuda.FloatTensor(x.size(0)).uniform_(*alpha_range).type(x.type())
                 alpha = alpha.view(alpha.size(0), 1, 1, 1).expand_as(x)
                 return alpha * x
             else:
@@ -23,7 +23,7 @@ class ShakeDropFunction(torch.autograd.Function):
     def backward(ctx, grad_output):
         gate = ctx.saved_tensors[0]
         if gate.item() == 0:
-            beta = torch.cuda.FloatTensor(grad_output.size(0)).uniform_(0, 1)
+            beta = torch.cuda.FloatTensor(grad_output.size(0)).uniform_(0, 1).type(grad_output.type())
             beta = beta.view(beta.size(0), 1, 1, 1).expand_as(grad_output)
             beta = Variable(beta)
             return beta * grad_output, None, None, None
