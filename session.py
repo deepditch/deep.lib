@@ -124,7 +124,7 @@ class Session():
         if 'optimizer' in checkpoint: self.optimizer.load_state_dict(checkpoint['optimizer'])
         if 'epoch' in checkpoint: self.epoch = checkpoint['epoch']
         if 'schedule' in checkpoint and self.schedule != None: self.schedule.load_state_dict(checkpoint['schedule'])
-        if 'mixed_precision' in checkpount: self.mixed_precision = checkpoint['mixed_precision']
+        if 'mixed_precision' in checkpoint: self.mixed_precision = checkpoint['mixed_precision']
         if 'amp' in checkpoint and checkpoint['amp'] is not None: amp.load_state_dict(checkpoint['amp'])
 
     def freeze_to(self, layer_index):
