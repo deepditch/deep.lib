@@ -88,6 +88,7 @@ class Session():
 
         state = {
             'model': self.model.state_dict(),
+            'mixed_precision': self.mixed_precision
         }
 
         torch.save(state, name)
@@ -100,7 +101,7 @@ class Session():
             'optimizer' : self.optimizer.state_dict(),
             'amp': amp.state_dict() if self.mixed_precision else None,
             'schedule': self.schedule.state_dict() if self.schedule != None else None,
-            'epoch': self.epoch
+            'epoch': self.epoch,
             'mixed_precision': self.mixed_precision
         }
 
