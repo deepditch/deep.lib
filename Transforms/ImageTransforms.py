@@ -318,3 +318,7 @@ class Cutout(object):
         img = img * mask
 
         return img
+
+
+class ToHalf(Transform):
+    def transform_x(self, x): return x.half()

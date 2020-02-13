@@ -21,3 +21,13 @@ def partition(x, sz):
 
 def mask(arr, indices):
     return [arr[i] for i in indices]
+
+def bn2float(module:torch.nn.Module)->torch.nn.Module:
+    "If `module` is batchnorm don't use half precision."
+    if isinstance(module, torch.nn.modules.batchnorm._BatchNorm): module.float()
+    for child in module.children(): bn2float(child)
+    return module
+
+def model2half(model:torch.nn.Module)->torch.nn.Module:
+    "Convert `model` to half precision except the batchnorm layers."
+    return bn2float(model.half())

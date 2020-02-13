@@ -15,7 +15,11 @@ from torch.utils.tensorboard import SummaryWriter
 class TrainCallback:
     def on_train_begin(self, session): pass
     def on_epoch_begin(self, session): pass
-    def on_batch_begin(self, session): pass
+    def on_batch_begin(self, session, x, y): pass
+    def on_loss_begin(self, session, outputs): pass
+    def on_backward_begin(self, session, loss): pass
+    def on_backward_end(self, session): pass
+    def on_step_end(self, session): pass
     def on_batch_end(self, session, lossMeter, output, label): pass
     def on_epoch_end(self, session, lossMeter): pass
     def on_train_end(self, session): pass

@@ -135,5 +135,5 @@ class _OnBatchLRScheduler(_LRScheduler):
     def __init__(self, iteration=0):
         super().__init__(iteration)
 
-    def on_batch_begin(self, session):
+    def on_batch_begin(self, session, x, y):
         self.step(session)
