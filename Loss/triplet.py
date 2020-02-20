@@ -7,7 +7,7 @@ import torch.optim as optim
 from torch.autograd import Variable
 import util
 
-def batch_hard_triplet_loss(embeddings, labels, margin, max_margin=None):
+def batch_hard_triplet_loss(embeddings, labels, margin):
     """Build the triplet loss over a batch of embeddings.
     For each anchor, we get the hardest positive and hardest negative to form a triplet.
     Args:
@@ -46,24 +46,19 @@ def batch_hard_triplet_loss(embeddings, labels, margin, max_margin=None):
     # Combine biggest d(a, p) and smallest d(a, n) into final triplet loss
     tl = hardest_positive_dist - hardest_negative_dist + margin
     tl[tl < 0] = 0
-
-    if tl != None:
-        tl[tl > max_margin + margin] = 0
-        
     triplet_loss = tl.mean()
 
     return triplet_loss
 
 class BatchHardTripletLoss(nn.Module):
-    def __init__(self, margin, max_margin=None):
+    def __init__(self, margin):
         super().__init__()
         self.margin = margin
-        self.max_margin = max_margin
 
     def forward(self, embeddings, labels):
-        return batch_hard_triplet_loss(embeddings, labels, self.margin, self.max_margin)
+        return batch_hard_triplet_loss(embeddings, labels, self.margin)
 
-def batch_all_triplet_loss(embeddings, labels, margin, max_margin=None): 
+def batch_all_triplet_loss(embeddings, labels, margin): 
     """Build the triplet loss over a batch of embeddings.
     We generate all the valid triplets and average the loss over the positive ones.
     Args:
@@ -95,9 +90,6 @@ def batch_all_triplet_loss(embeddings, labels, margin, max_margin=None):
     # Remove negative losses (i.e. the easy triplets)
     triplet_loss[triplet_loss < 0] = 0
 
-    if max_margin != None:
-        triplet_loss[triplet_loss > max_margin + margin] = 0
-
     # Count number of positive triplets (where triplet_loss > 0)
     valid_triplets = triplet_loss[triplet_loss > 1e-16]
     num_positive_triplets = valid_triplets.size(0)
@@ -111,13 +103,12 @@ def batch_all_triplet_loss(embeddings, labels, margin, max_margin=None):
     return triplet_loss
 
 class BatchAllTripletLoss(nn.Module):
-    def __init__(self, margin, max_margin=None):
+    def __init__(self, margin):
         super().__init__()
         self.margin = margin
-        self.max_margin = max_margin
 
     def forward(self, embeddings, labels):
-        return batch_all_triplet_loss(embeddings, labels, self.margin, self.max_margin)
+        return batch_all_triplet_loss(embeddings, labels, self.margin)
  
 
 def _pairwise_distances(embeddings, squared=False):

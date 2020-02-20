@@ -18,7 +18,7 @@ try:
     from apex import amp, optimizers
     from apex.multi_tensor_apply import multi_tensor_applier
 except ImportError:
-    apex_intalled = False
+    apex_installed = False
 
 class TrainModel():
     def __init__(self, model):
