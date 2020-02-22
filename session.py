@@ -10,6 +10,15 @@ import time
 import pickle
 from threading import Thread
 
+apex_installed = True
+
+try:
+    from apex.parallel import DistributedDataParallel as DDP
+    from apex.fp16_utils import *
+    from apex import amp, optimizers
+    from apex.multi_tensor_apply import multi_tensor_applier
+except ImportError:
+    apex_installed = False
 
 class TrainModel():
     def __init__(self, model):
@@ -72,12 +81,14 @@ class Session():
         self.log = log
         self.epoch = 0
         self.reset = reset
+        self.mixed_precision = False
 
     def _save(self, name):
         if not name.endswith('.ckpt.tar'): name += '.ckpt.tar'
 
         state = {
             'model': self.model.state_dict(),
+            'mixed_precision': self.mixed_precision
         }
 
         torch.save(state, name)
@@ -88,8 +99,10 @@ class Session():
         state = {
             'model': self.model.state_dict(),
             'optimizer' : self.optimizer.state_dict(),
+            'amp': amp.state_dict() if self.mixed_precision else None,
             'schedule': self.schedule.state_dict() if self.schedule != None else None,
-            'epoch': self.epoch
+            'epoch': self.epoch,
+            'mixed_precision': self.mixed_precision
         }
 
         torch.save(state, name)
@@ -111,6 +124,8 @@ class Session():
         if 'optimizer' in checkpoint: self.optimizer.load_state_dict(checkpoint['optimizer'])
         if 'epoch' in checkpoint: self.epoch = checkpoint['epoch']
         if 'schedule' in checkpoint and self.schedule != None: self.schedule.load_state_dict(checkpoint['schedule'])
+        if 'mixed_precision' in checkpoint: self.mixed_precision = checkpoint['mixed_precision']
+        if 'amp' in checkpoint and checkpoint['amp'] is not None: amp.load_state_dict(checkpoint['amp'])
 
     def freeze_to(self, layer_index):
         layers = list(self.model.children())
@@ -151,17 +166,22 @@ class Session():
     def forward(self, input):
         return self.model(Variable(util.to_gpu(input)))
 
-    def step(self, input, label):    
-        self.optimizer.zero_grad()                                  # Clear past gradient                                         
+    def step(self, input, label):                                   
         outputs = self.forward(input) 
+
         if isinstance(label, dict):
             label = {key: Variable(value) for key, value in label.items()}  
         else:
             label = Variable(util.to_gpu(label))     
         loss = self.criterion(outputs, label)
-        loss.backward()                                             # Calculate new gradient
-        self.optimizer.step()                                       # Update model parameters
-        return loss.data, outputs                                   # Return loss value  
+
+        if self.mixed_precision:
+            with amp.scale_loss(loss, self.optimizer) as scaled_loss: scaled_loss.backward()
+        else: loss.backward()  
+
+        self.optimizer.step()                                       
+        self.optimizer.zero_grad()                                        
+        return loss.data, outputs                                 
 
     def run(self, schedule, checkpoint_file=None, reset=False, ckpt_interval=5*60):
         self.running = True
@@ -171,13 +191,13 @@ class Session():
         if checkpoint_file != None and os.path.exists(checkpoint_file) and not reset: 
             print("--- LOADING CHECKPOINT ---")
             self.load(checkpoint_file)
+            if self.mixed_precision: self.to_fp16()
 
         lossMeter = LossMeter()
 
         start = time.time()
 
-        if self.epoch == 0: 
-            for cb in schedule.callbacks: cb.on_train_begin(self)       
+        for cb in schedule.callbacks: cb.on_train_begin(self)       
         
         for epoch in tqdm(range(schedule.epochs), desc="Epochs", initial=self.epoch):
             if not self.running: break
@@ -212,6 +232,13 @@ class Session():
 
     def stop(self):
         self.running = False
+
+    def to_fp16(self):
+        if not apex_installed: raise ImportError("Please install apex from https://www.github.com/nvidia/apex to use MixedPrecision training.")
+        self.mixed_precision = True
+        self.model, self.optimizer = amp.initialize(self.model, self.optimizer, opt_level='O1')
+
+
     
 class TrainingSchedule():
     def __init__(self, data, epochs, callbacks=[]):
