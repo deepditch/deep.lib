@@ -36,7 +36,7 @@ class CustomOneHotAccuracy(OneHotAccuracy):
         return super().update(output[-1][0], label)
 
 class EmbeddingSpaceValidator(TrainCallback):
-    def __init__(self, val_data, select, accuracy_meter_fn, model_file=None, tensorboard_dir=None):
+    def __init__(self, val_data, select, accuracy_meter_fn, loss_fn=F.multi_margin_loss, model_file=None, tensorboard_dir=None):
         super().__init__()
         self.val_data = val_data
         self.val_accuracy_meter = accuracy_meter_fn()
@@ -67,6 +67,8 @@ class EmbeddingSpaceValidator(TrainCallback):
 
         self.writer = SummaryWriter(log_dir=tensorboard_dir) if tensorboard_dir is not None else None    
 
+        self.loss_fn = loss_fn
+
     def state_dict(self):
         return pickle.dumps({k: self.__dict__[k] for k in set(['num_batches', 'num_epochs', 'model_file', 'best_accuracy'])})
 
@@ -86,7 +88,7 @@ class EmbeddingSpaceValidator(TrainCallback):
           
                 val_loss.update(step_loss, input.shape[0])
                 
-                val_raw_loss.update(F.multi_margin_loss(output[-1][0], label).data.cpu(), input.shape[0])
+                val_raw_loss.update(self.loss_fn(output[-1][0], label).data.cpu(), input.shape[0])
                 
                 self.val_accuracy_meter.update(output, label)
 
@@ -146,7 +148,7 @@ class EmbeddingSpaceValidator(TrainCallback):
     def on_batch_end(self, session, lossMeter, output, label):
         label = Variable(util.to_gpu(label))
         self.train_accuracy_meter.update(output, label)
-        self.train_raw_loss_meter.update(F.multi_margin_loss(output[-1][0], label).data.cpu(), label.shape[0])
+        self.train_raw_loss_meter.update(self.loss_fn(output[-1][0], label).data.cpu(), label.shape[0])
              
         for layer, loss_meter in zip(output[:-1], self.train_embedding_loss_meters):
             if layer[1] in self.select:
