@@ -139,11 +139,11 @@ class EmbeddingSpaceValidator(TrainCallback):
         
         print("\nval accuracy: ", round(self.val_accuracies[-1], 4),
               "train accuracy: ", round(self.train_accuracies[-1], 4),
-              "\ntrain loss: ", round(train_loss, 4) , 
+              "\ntrain loss: ", round(train_loss, 4), 
               " train unreg loss : ", round(train_raw_loss, 4),     
               " train triplet loss : ", round(train_triplet_loss, 4),   
               "\nvalid loss: ", round(val_loss, 4), 
-              " valid unreg loss : ", round(val_raw_loss, 4)
+              " valid unreg loss : ", round(val_raw_loss, 4),
               " valid triplet loss : ", round(val_triplet_loss, 4)
               )
 
