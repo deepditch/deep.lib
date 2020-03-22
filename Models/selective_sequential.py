@@ -127,13 +127,25 @@ class EmbeddingSpaceValidator(TrainCallback):
         for meter, loss in zip(self.train_embedding_loss_meters, self.train_embedding_losses):
             loss.append(meter.raw_avg)
             meter.reset()
+
+        
+        train_loss = self.train_losses[-1]
+        train_raw_loss = self.train_raw_losses[-1]
+        train_triplet_loss = train_loss - train_raw_loss
+
+        val_loss = self.val_losses[-1]
+        val_raw_loss = self.val_raw_losses[-1]
+        val_triplet_loss = val_loss - val_raw_loss
         
         print("\nval accuracy: ", round(self.val_accuracies[-1], 4),
               "train accuracy: ", round(self.train_accuracies[-1], 4),
-              "\ntrain loss: ", round(self.train_losses[-1], 4) , 
-              " train unreg loss : ", round(self.train_raw_losses[-1], 4) ,       
-              "\nvalid loss: ", round(self.val_losses[-1], 4), 
-              " valid unreg loss : ", round(self.val_raw_losses[-1], 4))
+              "\ntrain loss: ", round(train_loss, 4) , 
+              " train unreg loss : ", round(train_raw_loss, 4),     
+              " train triplet loss : ", round(train_triplet_loss, 4),   
+              "\nvalid loss: ", round(val_loss, 4), 
+              " valid unreg loss : ", round(val_raw_loss, 4)
+              " valid triplet loss : ", round(val_triplet_loss, 4)
+              )
 
         if self.writer is not None:
             self.writer.add_scalars('Loss/Regularized', {'Train':self.train_losses[-1],
