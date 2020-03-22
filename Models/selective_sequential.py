@@ -93,10 +93,7 @@ class EmbeddingSpaceValidator(TrainCallback):
             session.save(self.model_file)
             self.best_accuracy = accuracy
         
-        self.val_accuracies.append(accuracy)
-              
-        for meter, loss in zip(embedding_losses, self.val_embedding_losses):
-            loss.append(meter.raw_avg)     
+        self.val_accuracies.append(accuracy)    
         
     def on_epoch_begin(self, session):
         self.train_accuracy_meter.reset()     
