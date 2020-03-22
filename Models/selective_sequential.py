@@ -33,7 +33,7 @@ class CustomOneHotAccuracy(OneHotAccuracy):
         self.reset()
 
     def update(self, output, label):
-        return super().update(output[-1][0], label)
+        return super().update(output[-1], label)
 
 class EmbeddingSpaceValidator(TrainCallback):
     def __init__(self, val_data, select, accuracy_meter_fn, loss_fn=F.multi_margin_loss, model_file=None, tensorboard_dir=None):
