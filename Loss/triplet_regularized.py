@@ -26,8 +26,8 @@ class TripletRegularizedLoss(nn.Module):
 
 class TripletRegularizedCrossEntropyLoss(TripletRegularizedLoss):
     def __init__(self, alpha, margin, select=None, triplet_loss_fn=batch_all_triplet_loss):     
-        super(TripletRegularizedCrossEntropyLoss, self).__init__(alpha, margin, F.cross_entropy, triplet_loss_fn, select)
+        super(TripletRegularizedCrossEntropyLoss, self).__init__(alpha, margin, F.cross_entropy, triplet_loss_fn)
 
 class TripletRegularizedMultiMarginLoss(TripletRegularizedLoss):
     def __init__(self, alpha, margin, select=None, triplet_loss_fn=batch_all_triplet_loss):     
-        super(TripletRegularizedMultiMarginLoss, self).__init__(alpha, margin, F.multi_margin_loss, triplet_loss_fn, select)
+        super(TripletRegularizedMultiMarginLoss, self).__init__(alpha, margin, F.multi_margin_loss, triplet_loss_fn)
