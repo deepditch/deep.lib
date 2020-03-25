@@ -82,6 +82,7 @@ class Session():
         self.epoch = 0
         self.reset = reset
         self.mixed_precision = False
+        self.schedule = None
 
     def _save(self, name):
         if not name.endswith('.ckpt.tar'): name += '.ckpt.tar'
@@ -120,10 +121,11 @@ class Session():
     def load(self, name, map_location=None):
         if not name.endswith('.ckpt.tar'): name += '.ckpt.tar' 
         checkpoint = torch.load(name, map_location=map_location)
+        
         if 'model' in checkpoint: self.model.load_state_dict(checkpoint['model'])
         if 'optimizer' in checkpoint: self.optimizer.load_state_dict(checkpoint['optimizer'])
         if 'epoch' in checkpoint: self.epoch = checkpoint['epoch']
-        if 'schedule' in checkpoint and self.schedule != None: self.schedule.load_state_dict(checkpoint['schedule'])
+        if 'schedule' in checkpoint and self.schedule is not None: self.schedule.load_state_dict(checkpoint['schedule'])
         if 'mixed_precision' in checkpoint: self.mixed_precision = checkpoint['mixed_precision']
         if 'amp' in checkpoint and checkpoint['amp'] is not None: amp.load_state_dict(checkpoint['amp'])
 
