@@ -36,6 +36,7 @@ class Saver(TrainCallback):
     def on_epoch_end(self, session, lossMeter):
         self.epoch += 1
         session.save('model.%d' % self.epoch)
+        
 
 MEGA = 10 ** 6
 MEGA_STR = ' ' * MEGA
@@ -51,6 +52,21 @@ class MemoryProfiler(TrainCallback):
     def on_train_begin(self, session): self.print_profile("on_train_begin")
     def on_epoch_end(self, session, lossMeter): self.print_profile("on_epoch_end")
     def on_train_end(self, session): self.print_profile("on_train_end")
+
+
+class GPUMemoryProfiler(TrainCallback):
+  def print_profile(self):
+    stats = torch.cuda.memory_stats()
+    print(f"{stats['allocated_bytes.all.current']:<30,} {stats['allocated_bytes.all.peak']:<30,} {torch.cuda.get_device_properties('cuda').total_memory:<30,}")
+
+  def on_epoch_begin(self, session):
+    print(f"{'current': <30} {'peak': <30} {'total': <30}")
+
+  def on_batch_begin(self, session): 
+    self.print_profile()
+
+  def on_batch_end(self, session, lossmeter, asdf, asdfwer): 
+    self.print_profile()  
 
 
 class LossLogger(TrainCallback):
