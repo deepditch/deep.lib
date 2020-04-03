@@ -125,7 +125,7 @@ class Validator(TrainCallback):
         pathlib.Path(model_dir).mkdir(parents=True, exist_ok=True)
 
     def state_dict(self): return ""
-    def load_state_dict(self): pass
+    def load_state_dict(self, dict): pass
 
     def run(self, session, lossMeter=None):
         self.batch += 1
