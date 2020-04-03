@@ -150,9 +150,9 @@ class Validator(TrainCallback):
             session.save(f'{self.model_dir}/best-{self.batch}-{round(self.best_metric.item(), 6)}')
 
         if lossMeter is not None:
-            tqdm.write(f"Training Loss: {lossMeter.debias} Validaton Loss: {valLoss.raw_avg}")
+            print(f"Training Loss: {lossMeter.debias} Validaton Loss: {valLoss.raw_avg}")
         else:
-            tqdm.write(f"Validaton Loss: {valLoss.raw_avg}")
+            print(f"Validaton Loss: {valLoss.raw_avg}")
 
         if self.accuracy_meter is not None:
             self.accuracy_meter.report()
