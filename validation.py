@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import os
-from tqdm import tqdm
+from tqdm import tqdm_notebook as tqdm
 import session as sess
 from torch.autograd import Variable
 import numpy as np
