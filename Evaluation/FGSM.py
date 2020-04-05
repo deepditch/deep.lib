@@ -65,7 +65,9 @@ def fgsm_test(model, dataloader, epsilon):
           perturbed_data = fgsm_attack(data[mask], epsilon, data_grad[mask])
 
           # Re-classify the perturbed image
-          output = model(perturbed_data)[-1][0]
+
+          output = model(perturbed_data)
+          if isinstance(output, list): output = output[-1]  
 
           # Check for success
           _, final_pred = output.max(1) # get the index of the max log-probability
