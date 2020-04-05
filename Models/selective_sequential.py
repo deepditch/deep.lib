@@ -8,7 +8,7 @@ from callbacks import *
 import util
 from Loss.triplet import *
 from torch.utils.tensorboard import SummaryWriter
-from tqdm import tqdm_notebook as tqdm
+from tqdm.notebook import tqdm
 import numpy as np
 import pickle
 

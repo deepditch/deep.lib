@@ -4,7 +4,7 @@ import torch.optim as optim
 from torch.autograd import Variable
 import util
 import callbacks
-from tqdm import tqdm_notebook as tqdm
+from tqdm.notebook import tqdm
 import os
 import time
 import pickle
@@ -89,7 +89,7 @@ class Session():
         file = os.path.splitext(name)[0] + ".meta"
 
         with open(file, mode="w") as f:
-            for key, val in self.meta:
+            for key, val in self.meta.items():
                 f.write(f"## {key} \n")
                 f.write(f"{val} \n")
 

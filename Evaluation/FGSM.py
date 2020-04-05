@@ -2,7 +2,7 @@ import torch
 import util
 from session import *
 import matplotlib.pyplot as plt
-from tqdm import tqdm_notebook as tqdm
+from tqdm.notebook import tqdm
 from callbacks import *
 import torch.nn.functional as F
 
@@ -47,7 +47,9 @@ def fgsm_test(model, dataloader, epsilon):
           mask = init_pred == target
 
           output = output[mask]
-          target = target[mask]         
+          target = target[mask]
+
+          if len(target) == 0: continue         
 
           # Calculate the loss
           loss = F.nll_loss(output, target)
@@ -89,7 +91,7 @@ def fgsm_test_range(model, dataloader, epsilons, save_examples=False):
         examples = []
 
         # Run test for each epsilon
-        for eps in tqdm(epsilons, desc="FGSM"):
+        for eps in tqdm(epsilons, desc="FGSM", leave=False):
             acc, ex = fgsm_test(model, dataloader, eps)
             accuracies.append(acc)
             if save_examples: examples.append(ex)

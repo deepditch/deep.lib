@@ -2,14 +2,13 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import os
-from tqdm import tqdm_notebook as tqdm, tnrange
+from tqdm.notebook import tqdm
 import session as sess
 from torch.autograd import Variable
 import numpy as np
 import os
 import psutil
 import pickle
-from tqdm import tqdm
 from torch.utils.tensorboard import SummaryWriter
 
 class TrainCallback:
