@@ -109,7 +109,96 @@ class BatchAllTripletLoss(nn.Module):
 
     def forward(self, embeddings, labels):
         return batch_all_triplet_loss(embeddings, labels, self.margin)
+
+
+def select_pos_neg_dists(embeddings, labels, cutoff, nonzero_loss_cutoff):
+    n, d = embeddings.shape
+
+    distance = T._pairwise_distances(embeddings)
+    distance = distance.clamp(min=cutoff)
+
+    mask_anchor_positive = T._get_anchor_positive_triplet_mask(labels)
+    mask_anchor_negative = T._get_anchor_negative_triplet_mask(labels)
+
+    log_weights = ((2.0 - float(d)) * distance.log() - (float(d-3)/2)*torch.log(torch.clamp(1.0 - 0.25*(distance*distance), min=1e-8)))
+    log_weights = (log_weights - log_weights.min()) / (log_weights.max() - log_weights.min() + 1e-8)
+
+    weights = torch.exp(log_weights - torch.max(log_weights))
+
+    weights = weights * mask_anchor_negative.float() * (distance < nonzero_loss_cutoff).float()
+
+    weights_sum = torch.sum(weights, dim=1, keepdim=True)
+    weights = weights / weights_sum
+
+    weights = util.to_cpu(weights).detach().numpy()
  
+    pos_dist = []
+    neg_dist = []
+    anc_labels = []
+
+    for i, (y, distances, pos_mask, neg_mask) in enumerate(zip(labels, distance, mask_anchor_positive, mask_anchor_negative.cpu())):
+      num_triplets = min(pos_mask.sum().int().item(), neg_mask.sum().int().item())
+      pos_dists = distances[pos_mask][:num_triplets]
+
+      if weights_sum[i] != 0:
+        neg_dist_indicies = np.random.choice(n, num_triplets, p=weights[i])
+      else:
+        neg_dist_indicies = np.random.choice(n, num_triplets, p=neg_mask.double()/neg_mask.sum())
+
+      neg_dists = distances[neg_dist_indicies]
+
+      pos_dist.append(pos_dists)
+      neg_dist.append(neg_dists)
+      anc_labels.append(y.expand_as(pos_dists))
+
+    pos_dist = torch.cat(pos_dist)
+    neg_dist = torch.cat(neg_dist)
+    anc_labels = torch.cat(anc_labels)
+
+    return pos_dist, neg_dist, anc_labels
+ 
+def distance_weighted_triplet_loss(embeddings, labels, margin, nonzero_loss_cutoff=1.4, cutoff=0.5):
+    pos_dist, neg_dist, _ = select_pos_neg_dists(embeddings, labels, cutoff, nonzero_loss_cutoff)
+
+    loss = pos_dist - neg_dist + margin
+    loss[loss < 0] = 0
+
+    return loss.mean()
+
+class DistanceWeightedTripletLoss(nn.Module):
+  def __init__(self, margin, nonzero_loss_cutoff=1.4, cutoff=0.5):
+    super(DistanceWeightedTripletLoss, self).__init__()
+    self.margin = margin
+    self.nonzero_loss_cutoff = nonzero_loss_cutoff
+    self.cutoff = cutoff
+
+  def forward(self, x, y):
+    return distance_weighted_triplet_loss(x, y, self.margin, self.nonzero_loss_cutoff, self.cutoff) 
+
+def distance_weighted_margin_loss(embeddings, labels, margin, beta, nonzero_loss_cutoff=1.4, cutoff=0.5):
+    pos_dist, neg_dist, anc_labels = select_pos_neg_dists(embeddings, labels, cutoff, nonzero_loss_cutoff)
+    betas = beta[anc_labels]
+
+    pos_loss = torch.clamp(pos_dist - betas + margin, min=0.0)
+    neg_loss = torch.clamp(betas - neg_dist + margin, min=0.0)
+
+    pair_cnt = int(torch.sum((pos_loss > 0.0) + (neg_loss > 0.0)))
+
+    loss = (torch.sum(pos_loss + neg_loss)) / pair_cnt
+    return loss
+
+class DistanceWeightedMarginLoss(nn.Module):
+  def __init__(self, num_classes, margin=.2, beta=1.2, nonzero_loss_cutoff=1.4, cutoff=0.5):
+    super(DistanceWeightedMarginLoss, self).__init__()
+    self.nonzero_loss_cutoff = nonzero_loss_cutoff
+    self.margin = margin
+    self.cutoff = cutoff
+    self.beta = nn.Parameter(torch.ones((num_classes,), dtype=torch.float32, device=torch.device('cuda'))*beta)
+    self.optimizer_beta = torch.optim.SGD([self.beta], .1, momentum=.9, weight_decay=0.0001)
+
+  def forward(self, x, y):
+    margin_loss = distance_weighted_margin_loss(x, y, self.margin, self.beta, self.nonzero_loss_cutoff, self.cutoff) 
+    return margin_loss
 
 def _pairwise_distances(embeddings, squared=False):
     """Compute the 2D matrix of distances between all the embeddings.

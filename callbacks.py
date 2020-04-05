@@ -36,7 +36,7 @@ class Saver(TrainCallback):
     def on_epoch_end(self, session, lossMeter):
         self.epoch += 1
         session.save('model.%d' % self.epoch)
-        
+
 
 MEGA = 10 ** 6
 MEGA_STR = ' ' * MEGA
@@ -73,6 +73,7 @@ class LossLogger(TrainCallback):
     def on_epoch_end(self, session, lossMeter): 
         tqdm.write(f"Training Loss: {lossMeter.debias}")
 
+
 class TensorboardLogger(TrainCallback):
     def __init__(self, directory="./runs/", title="Loss/train"):
         self.iteration = 0
@@ -84,3 +85,16 @@ class TensorboardLogger(TrainCallback):
 
     def __del__(self):
         self.writer.close()
+
+
+class OptimizerStepper(TrainCallback):
+  def __init__(self, optimizer):
+    super().__init__()
+    self.optimizer = optimizer
+
+  def state_dict(self): return self.optimizer.state_dict
+  def load_state_dict(self, state_dict): self.optimizer.load_state_dict(state_dict)
+
+  def on_epoch_end(self, session, lossmeter):
+    self.optimizer.step()
+    self.optimizer.zero_grad()

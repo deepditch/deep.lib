@@ -4,6 +4,7 @@ from session import *
 import matplotlib.pyplot as plt
 from tqdm import tqdm_notebook as tqdm
 from callbacks import *
+import torch.nn.functional as F
 
 
 def fgsm_attack(image, epsilon, data_grad):
@@ -86,7 +87,7 @@ def fgsm_test_range(model, dataloader, epsilons, save_examples=False):
 
         # Run test for each epsilon
         for eps in tqdm(epsilons, desc="FGSM"):
-            acc, ex = fgsm_test(model, test_loader, eps)
+            acc, ex = fgsm_test(model, dataloader, eps)
             accuracies.append(acc)
             if save_examples: examples.append(ex)
 
