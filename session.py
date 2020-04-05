@@ -88,10 +88,10 @@ class Session():
     def _save_meta(self, name):
         file = os.path.splitext(name)[0] + ".meta"
 
-        with open(file) as f:
+        with open(file, mode="w") as f:
             for key, val in self.meta:
-                file.write(f"## {key} \n")
-                file.write(f"{val} \n")
+                f.write(f"## {key} \n")
+                f.write(f"{val} \n")
 
 
     def _save(self, name):

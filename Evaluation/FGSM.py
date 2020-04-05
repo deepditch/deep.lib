@@ -36,13 +36,14 @@ def fgsm_test(model, dataloader, epsilon):
           data.requires_grad = True
 
           # Forward pass the data through the model
-          output = model(data)[-1][0]
+          output = model(data)
+          if isinstance(output, list): output = output[-1]
+
           output = F.log_softmax(output, dim=1)
 
           _, init_pred = output.max(1) # get the index of the max log-probability
 
           # If the initial prediction is wrong, dont bother attacking, just move on
-
           mask = init_pred == target
 
           output = output[mask]
