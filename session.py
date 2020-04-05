@@ -83,6 +83,16 @@ class Session():
         self.reset = reset
         self.mixed_precision = False
         self.schedule = None
+        self.meta = {}
+
+    def _save_meta(self, name):
+        file = os.path.splitext(name)[0] + ".meta"
+
+        with open(file) as f:
+            for key, val in self.meta:
+                file.write(f"## {key} \n")
+                file.write(f"{val} \n")
+
 
     def _save(self, name):
         if not name.endswith('.ckpt.tar'): name += '.ckpt.tar'
@@ -93,6 +103,8 @@ class Session():
         }
 
         torch.save(state, name)
+
+        self._save_meta(name)
 
     def _checkpoint(self, name):
         if not name.endswith('.ckpt.tar'): name += '.ckpt.tar'
@@ -107,6 +119,14 @@ class Session():
         }
 
         torch.save(state, name)
+
+        self._save_meta(name)
+
+    def add_meta(self, key: str, desc: str):
+        if not isinstance(key, str):
+            raise TypeError("key must be a string")
+
+        self.meta[key] = str(desc)
 
     def save(self, name):
         a = Thread(target=Session._save, args=(self, name))
@@ -241,7 +261,6 @@ class Session():
         self.model, self.optimizer = amp.initialize(self.model, self.optimizer, opt_level='O1')
 
 
-    
 class TrainingSchedule():
     def __init__(self, data, epochs, callbacks=[]):
         self.data = data

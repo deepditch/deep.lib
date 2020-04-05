@@ -147,6 +147,7 @@ class Validator(TrainCallback):
         
         if self.save_best and metric > self.best_metric:
             self.best_metric = metric
+            session.add_meta("Best Accuracy", self.best_metric)
             session.save(f'{self.model_dir}/best-{self.batch}-{round(self.best_metric.item(), 6)}')
 
         if lossMeter is not None:

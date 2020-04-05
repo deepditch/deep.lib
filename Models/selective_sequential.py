@@ -90,6 +90,7 @@ class EmbeddingSpaceValidator(TrainCallback):
         accuracy = self.val_accuracy_meter.accuracy()
 
         if self.model_file != None and accuracy > self.best_accuracy:
+            session.add_meta("Best Accuracy", str(self.best_accuracy))
             session.save(self.model_file)
             self.best_accuracy = accuracy
         
