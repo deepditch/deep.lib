@@ -86,7 +86,7 @@ class Session():
         self.meta = {}
 
     def _save_meta(self, name):
-        file = os.path.splitext(name)[0] + ".meta"
+        file = os.path.splitext(name)[0] + ".meta.md"
 
         with open(file, mode="w") as f:
             for key, val in self.meta.items():
