@@ -213,7 +213,6 @@ class Session():
         if checkpoint_file != None and os.path.exists(checkpoint_file) and not reset: 
             print("--- LOADING CHECKPOINT ---")
             self.load(checkpoint_file)
-            if self.mixed_precision: self.to_fp16()
 
         lossMeter = LossMeter()
 

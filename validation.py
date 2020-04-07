@@ -10,6 +10,7 @@ from callbacks import TrainCallback
 import util
 import time
 import pathlib
+from sklearn.metrics import label_ranking_loss, coverage_error, label_ranking_average_precision_score
 
 class _AccuracyMeter:
     def update(self, output, label): raise NotImplementedError
@@ -44,74 +45,128 @@ class NHotAccuracy(_AccuracyMeter):
     def __init__(self, num_classes, threshold=.5):        
         self.num_classes = num_classes
         self.num_true_positives = 0
+        self.num_true_negatives = 0
         self.num_false_positives = 0
         self.num_false_negatives = 0
         self.eps = threshold
         self.reset()
 
-    def reset(self):
-        self.confusion = [{"true_pos":0, "true_neg":0, "false_pos":0, "false_neg":0, "support": 0} for i in range(self.num_classes)]
-    
-    def metric(self): 
-        precision = self.num_true_positives / (self.num_true_positives + self.num_false_positives)
-        recall = self.num_true_positives / (self.num_true_positives + self.num_false_negatives)
+    def metric(self): return self.FMeasure()[1] # Macro average FMeasure
 
-        return 2 * (precision * recall) / (precision + recall)
+    def reset(self):
+        self.n = 0    
+        self.one_error = 0
+        self.coverage = 0
+        self.ranking_loss = 0    
+        self.average_precision = 0
+
+        self.confusion = [{"true_pos":0, "true_neg":0, "false_pos":0, "false_neg":0, "support": 0} for i in range(self.num_classes)]
+
+    def report(self):
+      acc = self.accuracy()
+      prec = self.precision()
+      rec = self.recall()
+      FM = self.FMeasure()
+
+      df = pd.DataFrame(np.array([acc, prec, rec, FM]).T, ["Micro avg.", "Macro avg.", "Weighted avg."], ["Accuracy", "Precision", "Recall", "FMeasure"])
+
+      print(df)
+
+      print("")
+
+      RL = self.RankingLoss()
+      AP = self.AveragePrecision()
+      O = self.OneError()
+      C = self.Coverage()
+
+      df = pd.DataFrame([(O, C, RL, AP)], columns=["One-Error", "Coverage", "Ranking Loss", "Average Precision"])
+
+      print(df.to_string(index=False))
+    
+    def accuracy(self): 
+        micro = (self.num_true_positives + self.num_true_negatives) / (self.num_true_positives + self.num_true_negatives + self.num_false_positives + self.num_false_negatives)
+        accuracies = [(cls["true_pos"] + cls["true_neg"]) / (cls["true_pos"] + cls["true_neg"] + cls["false_pos"] + cls["false_neg"]) for cls in self.confusion]
+        macro = np.average(accuracies)
+        weighted = np.average(accuracies, weights=[cls["support"] for cls in self.confusion])
+
+        return micro, macro, weighted
 
     def precision(self):
-        precision = []
-        for conf in self.confusion:
-            if(conf["true_pos"] == 0):
-                precision.append(0)
-            else:
-                precision.append(conf["true_pos"] / (conf["true_pos"] + conf["false_pos"]))
+        micro = self.num_true_positives / (self.num_true_positives + self.num_false_positives)
+        precisions = [(cls["true_pos"]) / (cls["true_pos"] + cls["false_pos"]) if cls["true_pos"] + cls["false_pos"] else 1 for cls in self.confusion]
+        macro = np.average(precisions)
+        weighted = np.average(precisions, weights=[cls["support"] for cls in self.confusion])
 
-        return precision
+        return micro, macro, weighted
 
     def recall(self):
-        recall = []
-        for conf in self.confusion:
-            if(conf["true_pos"] == 0):
-                recall.append(0)
-            else:
-                recall.append(conf["true_pos"] / (conf["true_pos"] + conf["false_neg"]))
+        micro = self.num_true_positives / (self.num_true_positives + self.num_false_negatives)  
+        recalls = [(cls["true_pos"]) / (cls["true_pos"] + cls["false_neg"]) for cls in self.confusion if cls["support"] > 0]
+        macro = np.average(recalls)
+        weighted = np.average(recalls, weights=[cls["support"] for cls in self.confusion if cls["support"] > 0])
 
-        return recall
+        return micro, macro, weighted
 
     def FMeasure(self):
-        f = []
-        precision = self.precision()
-        recall = self.recall()
-        for r, p in zip(recall, precision):
-            if r == 0 or p == 0:
-                f.append(0)
-            else:
-                f.append(2 * (p * r) / (p + r))
+        micro_p, macro_p, weighted_p = self.precision()
+        micro_r, macro_r, weighted_r = self.recall()
 
-        return f
+        micro = 2 * (micro_p * micro_r) / (micro_p + micro_r)
+        macro = 2 * (macro_p * macro_r) / (macro_p + macro_r)
+        weighted = 2 * (weighted_p * weighted_r) / (weighted_p + weighted_r)
+
+        return micro, macro, weighted
+
+    def RankingLoss(self): return self.ranking_loss / self.n
+    def AveragePrecision(self): return self.average_precision / self.n
+    def Coverage(self): return self.coverage / self.n
+    def OneError(self): return self.one_error / self.n
 
     def update_from_numpy(self, preds, labels):
-        for pred, label, detail in zip(zip(*preds), zip(*labels), self.confusion):
+        for pred, label, cls in zip(zip(*preds), zip(*labels), self.confusion):
             true_pos = np.sum([p and l for p, l in zip(pred, label)])
             true_neg = np.sum([not p and not l for p, l in zip(pred, label)])
             false_pos = np.sum([p and not l for p, l in zip(pred, label)])
             false_neg = np.sum([not p and l for p, l in zip(pred, label)])
             
             self.num_true_positives += true_pos
+            self.num_true_positives += true_neg
             self.num_false_positives += false_pos
             self.num_false_negatives += false_neg
 
-            detail["true_pos"] += true_pos
-            detail["true_neg"] += true_neg
-            detail["false_pos"] += false_pos
-            detail["false_neg"] += false_neg
-            detail["support"] += true_pos + false_neg
+            cls["true_pos"] += true_pos
+            cls["true_neg"] += true_neg
+            cls["false_pos"] += false_pos
+            cls["false_neg"] += false_neg
+            cls["support"] += true_pos + false_neg
+
+        n = len(preds)
+
+        self.n += n
+        self.ranking_loss += label_ranking_loss(labels, preds) * n
+        self.coverage += coverage_error(labels, preds) * n
+        self.average_precision += label_ranking_average_precision_score(labels, preds) * n
+
+        for pred, label in zip(preds, labels):
+            lowest_rank_prediction = np.argsort(pred)[-1]
+            label = np.argwhere(label)
+
+            if lowest_rank_prediction not in label: 
+                self.one_error += 1
 
     def update(self, outputs, labels):
-        preds = util.to_cpu(torch.where(outputs > self.eps, 1, 0)).data.numpy().astype(int)
+        outputs = outputs.view(-1, self.num_classes)
+        labels = labels.view(-1, self.num_classes)
+
+        mask = labels.any(dim=1)
+
+        outputs = outputs[mask]
+        labels = labels[mask]
+
+        preds = util.to_cpu(outputs > self.eps).data.numpy().astype(int)
         labels = util.to_cpu(labels).data.numpy().astype(int)
 
-        self.update_from_numpy(preds, labels)       
+        self.update_from_numpy(preds, labels)      
 
 
 class Validator(TrainCallback):
