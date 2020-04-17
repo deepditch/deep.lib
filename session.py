@@ -98,8 +98,7 @@ class Session():
         if not name.endswith('.ckpt.tar'): name += '.ckpt.tar'
 
         state = {
-            'model': self.model.state_dict(),
-            'mixed_precision': self.mixed_precision
+            'model': self.model.state_dict()
         }
 
         torch.save(state, name)
@@ -114,8 +113,7 @@ class Session():
             'optimizer' : self.optimizer.state_dict(),
             'amp': amp.state_dict() if self.mixed_precision else None,
             'schedule': self.schedule.state_dict() if self.schedule != None else None,
-            'epoch': self.epoch,
-            'mixed_precision': self.mixed_precision
+            'epoch': self.epoch
         }
 
         torch.save(state, name)
@@ -146,7 +144,6 @@ class Session():
         if 'optimizer' in checkpoint: self.optimizer.load_state_dict(checkpoint['optimizer'])
         if 'epoch' in checkpoint: self.epoch = checkpoint['epoch']
         if 'schedule' in checkpoint and self.schedule is not None: self.schedule.load_state_dict(checkpoint['schedule'])
-        if 'mixed_precision' in checkpoint: self.mixed_precision = checkpoint['mixed_precision']
         if 'amp' in checkpoint and checkpoint['amp'] is not None and self.mixed_precision: amp.load_state_dict(checkpoint['amp'])
 
     def freeze_to(self, layer_index):
