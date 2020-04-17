@@ -124,10 +124,6 @@ class Session():
         state = self.model.state_dict()
         torch.save(state, name)
 
-    def load_model(self, name):
-        model_dict = torch.load(name, map_location=None)
-        self.model.load_state_dict(model_dict)
-
     def add_meta(self, key: str, desc: str):
         if not isinstance(key, str):
             raise TypeError("key must be a string")
@@ -136,6 +132,11 @@ class Session():
 
     def save(self, name):
         a = Thread(target=Session._save, args=(self, name))
+        a.start()
+        a.join()
+
+    def save_model(self, name):
+        a = Thread(target=Session._save_model, args=(self, name))
         a.start()
         a.join()
 
@@ -153,6 +154,10 @@ class Session():
         if 'epoch' in checkpoint: self.epoch = checkpoint['epoch']
         if 'schedule' in checkpoint and self.schedule is not None: self.schedule.load_state_dict(checkpoint['schedule'])
         if 'amp' in checkpoint and checkpoint['amp'] is not None and self.mixed_precision: amp.load_state_dict(checkpoint['amp'])
+    
+    def load_model(self, name):
+        model_dict = torch.load(name, map_location=None)
+        self.model.load_state_dict(model_dict)
 
     def freeze_to(self, layer_index):
         layers = list(self.model.children())
