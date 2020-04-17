@@ -120,6 +120,14 @@ class Session():
 
         self._save_meta(name)
 
+    def _save_model(self, name):
+        state = self.model.state_dict()
+        torch.save(state, name)
+
+    def load_model(self, name):
+        model_dict = torch.load(name, map_location=None)
+        self.model.load_state_dict(model_dict)
+
     def add_meta(self, key: str, desc: str):
         if not isinstance(key, str):
             raise TypeError("key must be a string")
