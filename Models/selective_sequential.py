@@ -197,3 +197,51 @@ def tensorboard_embeddings(model, select, dataloader, targets, images, board='./
     for name, output in outputs.items():
         cat = torch.cat(output)
         writer.add_embedding(cat, tag=name, metadata=targets, label_img=images)
+
+from sklearn.decomposition import PCA
+from sklearn.mixture import GaussianMixture
+from scipy import stats as s
+
+def compute_embeddings(model, dataloader, max_num):
+  outputs = []
+  labels = []
+
+  num = 0
+
+  with EvalModel(model):
+      for input, label in dataloader:
+          output = model.forward(Variable(util.to_gpu(input)))[0]
+          # output = model.forward(Variable(util.to_gpu(input)))
+          outputs.append(output.data.cpu().view(output.size(0), -1)) 
+          labels.append(label)   
+          num += label.shape[0]
+
+          if num > max_num: break
+              
+  cat = torch.cat(outputs).numpy()
+  labels = torch.cat(labels).numpy()
+
+  return cat, labels
+
+class EmbeddingSpaceVisualizer(TrainCallback):
+  def __init__(self, dataloader, interval=1):
+    super().__init__()
+    self.dataloader = dataloader
+    self.interval = interval
+    self.num_epochs = 0
+
+  def state_dict(self): return {}
+  def load_state_dict(self, state_dict): pass
+
+  def on_epoch_begin(self, session):
+    self.num_epochs += 1
+    if self.num_epochs % self.interval != 0: return
+     
+    num_to_plot = 200
+    embedding, y = compute_embeddings(session.model, self.dataloader, num_to_plot)
+    pca = PCA(n_components=2, whiten=True)
+    pca.fit(embedding)
+    X_pca = pca.transform(embedding)
+    fig, ax = plt.subplots(figsize=(8,8))
+    ax.scatter(X_pca[:, 0], X_pca[:, 1], c=y)
+    plt.show()
