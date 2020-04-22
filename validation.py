@@ -186,7 +186,7 @@ class Validator(TrainCallback):
         self.batch += 1
         if self.accuracy_meter is not None: self.accuracy_meter.reset()
         valLoss = sess.LossMeter()
-        with sess.EvalModel(session.model):
+        with sess.EvalModel(session.model) and torch.no_grad():
             for input, label, *_ in tqdm(self.val_data, desc="Validating", leave=False):
                 if isinstance(label, dict):
                     label = {key: Variable(value) for key, value in label.items()}  

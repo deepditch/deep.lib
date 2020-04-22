@@ -132,6 +132,9 @@ class FGSM(TrainCallback):
      
     accuracies, _ = fgsm_test_range(session.model, self.dataloader, self.epsilons)
 
+    session.model.zero_grad()
+    session.optimizer.zero_grad()
+
     string = "\n".join([f"Epsilon={eps} Accuracy={acc}" for eps, acc in zip(self.epsilons, accuracies)])
 
     session.add_meta(f"FGSM Epoch {self.num_epochs}", string)
