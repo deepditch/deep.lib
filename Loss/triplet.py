@@ -20,7 +20,7 @@ def batch_hard_triplet_loss(embeddings, labels, margin):
         triplet_loss: scalar tensor containing the triplet loss
     """
     # Get the pairwise distance matrix
-    pairwise_dist = _pairwise_distances(embeddings)
+    pairwise_dist = pairwise_distances(embeddings)
 
     # For each anchor, get the hardest positive
     # First, we need to get a mask for every valid positive (they should have same label)
@@ -71,7 +71,7 @@ def batch_all_triplet_loss(embeddings, labels, margin):
         triplet_loss: scalar tensor containing the triplet loss
     """
     # Get the pairwise distance matrix
-    pairwise_dist = _pairwise_distances(embeddings)
+    pairwise_dist = pairwise_distances(embeddings)
 
     anchor_positive_dist = pairwise_dist.unsqueeze(2)
     anchor_negative_dist = pairwise_dist.unsqueeze(1)
@@ -114,11 +114,11 @@ class BatchAllTripletLoss(nn.Module):
 def select_pos_neg_dists(embeddings, labels, cutoff, nonzero_loss_cutoff):
     n, d = embeddings.shape
 
-    distance = T._pairwise_distances(embeddings)
+    distance = pairwise_distances(embeddings)
     distance = distance.clamp(min=cutoff)
 
-    mask_anchor_positive = T._get_anchor_positive_triplet_mask(labels)
-    mask_anchor_negative = T._get_anchor_negative_triplet_mask(labels)
+    mask_anchor_positive = _get_anchor_positive_triplet_mask(labels)
+    mask_anchor_negative = _get_anchor_negative_triplet_mask(labels)
 
     log_weights = ((2.0 - float(d)) * distance.log() - (float(d-3)/2)*torch.log(torch.clamp(1.0 - 0.25*(distance*distance), min=1e-8)))
     log_weights = (log_weights - log_weights.min()) / (log_weights.max() - log_weights.min() + 1e-8)
@@ -200,7 +200,7 @@ class DistanceWeightedMarginLoss(nn.Module):
     margin_loss = distance_weighted_margin_loss(x, y, self.margin, self.beta, self.nonzero_loss_cutoff, self.cutoff) 
     return margin_loss
 
-def _pairwise_distances(embeddings, squared=False):
+def pairwise_distances(embeddings, squared=False):
     """Compute the 2D matrix of distances between all the embeddings.
     Args:
         embeddings: tensor of shape (batch_size, embed_dim)
