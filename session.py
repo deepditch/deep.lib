@@ -198,7 +198,8 @@ class Session():
     def forward(self, input):
         return self.model(Variable(util.to_gpu(input)))
 
-    def step(self, input, label):                                   
+    def step(self, input, label):   
+        self.optimizer.zero_grad()                                
         outputs = self.forward(input) 
 
         if isinstance(label, dict):
@@ -211,8 +212,8 @@ class Session():
             with amp.scale_loss(loss, self.optimizer) as scaled_loss: scaled_loss.backward()
         else: loss.backward()  
 
-        self.optimizer.step()                                       
-        self.optimizer.zero_grad()                                        
+        self.optimizer.step()
+        self.optimizer.zero_grad()                                                                             
         return loss.data, outputs                                 
 
     def run(self, schedule, checkpoint_file=None, reset=False, ckpt_interval=5*60):

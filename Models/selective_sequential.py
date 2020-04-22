@@ -71,7 +71,7 @@ class EmbeddingSpaceValidator(TrainCallback):
         val_loss = LossMeter()
         val_raw_loss = LossMeter()
         
-        with EvalModel(session.model):
+        with EvalModel(session.model) and torch.no_grad():
             for input, label, *_ in tqdm(self.val_data, desc="Validating", leave=False):
                 label = Variable(util.to_gpu(label))
                 output = session.forward(input)
@@ -208,7 +208,7 @@ def compute_embeddings(model, dataloader, max_num):
 
   num = 0
 
-  with EvalModel(model) and torch.no_grad():
+  with EvalModel(model):
       for input, label in dataloader:
           output = model.forward(Variable(util.to_gpu(input)))[0]
           # output = model.forward(Variable(util.to_gpu(input)))
