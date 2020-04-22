@@ -6,6 +6,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 from torch.autograd import Variable
 import util
+import numpy as np
 
 def batch_hard_triplet_loss(embeddings, labels, margin):
     """Build the triplet loss over a batch of embeddings.
