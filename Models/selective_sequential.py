@@ -208,7 +208,7 @@ def compute_embeddings(model, dataloader, max_num):
 
   num = 0
 
-  with EvalModel(model):
+  with EvalModel(model) and torch.no_grad():
       for input, label in dataloader:
           output = model.forward(Variable(util.to_gpu(input)))[0]
           # output = model.forward(Variable(util.to_gpu(input)))
