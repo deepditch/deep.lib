@@ -236,7 +236,7 @@ class Session():
             
             for cb in schedule.callbacks: cb.on_epoch_begin(self)
             
-            for input, label, *_ in tqdm(schedule.data, desc="Steps", leave=False):
+            for input, label, *_ in tqdm(schedule.data, desc=f"Epoch {epoch}", leave=False):
                 if not self.running: break
                 for cb in schedule.callbacks: cb.on_batch_begin(self)
                 step_loss, outputs = self.step(input, label)  
