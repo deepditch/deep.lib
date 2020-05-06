@@ -95,8 +95,6 @@ class Session():
 
 
     def _save(self, name):
-        if not name.endswith('.ckpt.tar'): name += '.ckpt.tar'
-
         state = {
             'model': self.model.state_dict()
         }
@@ -106,8 +104,6 @@ class Session():
         self._save_meta(name)
 
     def _checkpoint(self, name):
-        if not name.endswith('.ckpt.tar'): name += '.ckpt.tar'
-
         state = {
             'model': self.model.state_dict(),
             'optimizer' : self.optimizer.state_dict(),
@@ -146,7 +142,6 @@ class Session():
         a.join()
 
     def load(self, name, map_location=None):
-        if not name.endswith('.ckpt.tar'): name += '.ckpt.tar' 
         checkpoint = torch.load(name, map_location=map_location)
         
         if 'model' in checkpoint: self.model.load_state_dict(checkpoint['model'])
@@ -220,7 +215,6 @@ class Session():
         self.running = True
         self.schedule = schedule
 
-        if checkpoint_file != None and not checkpoint_file.endswith('.ckpt.tar'): checkpoint_file += '.ckpt.tar'
         if checkpoint_file != None and os.path.exists(checkpoint_file) and not reset: 
             print("--- LOADING CHECKPOINT ---")
             self.load(checkpoint_file)
@@ -236,7 +230,7 @@ class Session():
             
             for cb in schedule.callbacks: cb.on_epoch_begin(self)
             
-            for input, label, *_ in tqdm(schedule.data, desc=f"Epoch {epoch+1}", leave=False):
+            for input, label, *_ in tqdm(schedule.data, desc=f"Epoch {self.epoch+1}", leave=False):
                 if not self.running: break
                 for cb in schedule.callbacks: cb.on_batch_begin(self)
                 step_loss, outputs = self.step(input, label)  
