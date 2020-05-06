@@ -144,6 +144,6 @@ class FGSM(TrainCallback):
      
     accuracies = self.run(session)
 
-    string = "\n".join([f"Epsilon={eps} Accuracy={acc}" for eps, acc in zip(self.epsilons, accuracies)])
+    string = "\n  ".join([f"Epsilon={eps} Accuracy={acc:.6f}" for eps, acc in zip(self.epsilons, accuracies)])
     session.add_meta(f"FGSM Epoch {self.num_epochs}", string)
     
