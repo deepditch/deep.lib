@@ -39,9 +39,6 @@ class AdvertorchCallback(TrainCallback):
   def on_epoch_end(self, session, lossMeter):
     self.num_epochs += 1
     if self.num_epochs % self.interval != 0: return
-
-    if lossMeter is not None:
-        print(f"Training Loss: {lossMeter.debias}")
      
     accuracy = self.run(session)
 
