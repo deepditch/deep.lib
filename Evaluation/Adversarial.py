@@ -48,6 +48,7 @@ class AdvertorchCallback(TrainCallback):
     if self.model_file != None:
         if accuracy > self.best:
             self.best = accuracy
+            session.add_meta(f"{self.adversary.__class__.__name__} Best", str(self.best))
             session.save(self.model_file)
 
     session.add_meta(f"{self.adversary.__class__.__name__} Epoch {self.num_epochs}", str(accuracy))
