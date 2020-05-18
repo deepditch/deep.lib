@@ -27,7 +27,7 @@ class AdvertorchCallback(TrainCallback):
         total += len(label)
         
         # Re-classify the perturbed image
-        output = model(perturbed_data)
+        output = session.model(perturbed_data)
         if isinstance(output, list): output = output[-1]  
         _, final_pred = output.max(1)
         correct += torch.sum(final_pred == label)
