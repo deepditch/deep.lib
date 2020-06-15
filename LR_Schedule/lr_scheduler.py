@@ -50,7 +50,7 @@ class _LRScheduler(TrainCallback):
         self.base_lrs = None
         self.iteration = 0
 
-    def on_train_begin(self, session):
+    def on_train_begin(self, session, *args, **kwargs):
         '''Extracts the initial learning rate from the session
         
         Arguments:
@@ -125,7 +125,7 @@ class _OnEpochLRScheduler(_LRScheduler):
     def __init__(self, iteration=0):
         super().__init__(iteration)
 
-    def on_epoch_begin(self, session):
+    def on_epoch_begin(self, session, *args, **kwargs):
         self.step(session)
 
 
@@ -135,5 +135,5 @@ class _OnBatchLRScheduler(_LRScheduler):
     def __init__(self, iteration=0):
         super().__init__(iteration)
 
-    def on_batch_begin(self, session):
+    def on_batch_begin(self, session, *args, **kwargs):
         self.step(session)

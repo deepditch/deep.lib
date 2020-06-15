@@ -70,7 +70,7 @@ class LossMeter(object):
 
 
 class Session():
-    def __init__(self, model, criterion, optim_fn, lrs=1e-3, log=True, reset=False, **kwargs):
+    def __init__(self, model, criterion, optim_fn, lrs=1e-3, **kwargs):
         self.model = util.to_gpu(model)
         self.criterion = criterion    
         self.optim_fn = optim_fn
@@ -78,9 +78,6 @@ class Session():
         self.optimizer = self.optim_fn(param_arr, **kwargs) # Initialize with learning rate of 0
         self.set_lr(lrs) # Update learning rate from passed lrs
         self.running = False
-        self.log = log
-        self.epoch = 0
-        self.reset = reset
         self.mixed_precision = False
         self.schedule = None
         self.meta = {}
@@ -108,8 +105,7 @@ class Session():
             'model': self.model.state_dict(),
             'optimizer' : self.optimizer.state_dict(),
             'amp': amp.state_dict() if self.mixed_precision else None,
-            'schedule': self.schedule.state_dict() if self.schedule != None else None,
-            'epoch': self.epoch
+            'schedule': self.schedule.state_dict() if self.schedule != None else None
         }
 
         torch.save(state, name)
@@ -146,7 +142,6 @@ class Session():
         
         if 'model' in checkpoint: self.model.load_state_dict(checkpoint['model'])
         if 'optimizer' in checkpoint: self.optimizer.load_state_dict(checkpoint['optimizer'])
-        if 'epoch' in checkpoint: self.epoch = checkpoint['epoch']
         if 'schedule' in checkpoint and self.schedule is not None: self.schedule.load_state_dict(checkpoint['schedule'])
         if 'amp' in checkpoint and checkpoint['amp'] is not None and self.mixed_precision: amp.load_state_dict(checkpoint['amp'])
     
@@ -199,62 +194,46 @@ class Session():
         if isinstance(label, dict):
             label = {key: Variable(value) for key, value in label.items()}  
         else:
-            label = Variable(util.to_gpu(label))     
+            label = Variable(util.to_gpu(label))
+                
         loss = self.criterion(outputs, label)
 
         self.optimizer.zero_grad()     
 
         if self.mixed_precision:
-            with amp.scale_loss(loss, self.optimizer) as scaled_loss: scaled_loss.backward()
-        else: loss.backward()  
+            with amp.scale_loss(loss, self.optimizer) as scaled_loss: 
+                scaled_loss.backward()
+        else: 
+            loss.backward()  
 
-        self.optimizer.step()                                                                            
+        self.optimizer.step()
+
         return loss.data, outputs                                 
 
-    def run(self, schedule, checkpoint_file=None, reset=False, ckpt_interval=5*60):
+    def run(self, schedule):
         self.running = True
         self.schedule = schedule
 
-        if checkpoint_file != None and os.path.exists(checkpoint_file) and not reset: 
-            print("--- LOADING CHECKPOINT ---")
-            self.load(checkpoint_file)
-
-        lossMeter = LossMeter()
-
-        start = time.time()
-
-        for cb in schedule.callbacks: cb.on_train_begin(self)       
+        schedule.on_train_begin(self)       
         
-        for epoch in tqdm(range(schedule.epochs), desc="Epochs", initial=self.epoch):
+        for epoch in self.schedule:
             if not self.running: break
             
-            for cb in schedule.callbacks: cb.on_epoch_begin(self)
+            self.schedule.on_epoch_begin(self)
             
-            for input, label, *_ in tqdm(schedule.data, desc=f"Epoch {self.epoch+1}", leave=False):
+            for input, label, *_ in self.schedule.data():
                 if not self.running: break
-                for cb in schedule.callbacks: cb.on_batch_begin(self)
-                step_loss, outputs = self.step(input, label)  
-                if self.log: lossMeter.update(util.to_cpu(step_loss), input.shape[0])
-                for cb in schedule.callbacks: cb.on_batch_end(self, lossMeter, outputs, label)
+                self.schedule.on_batch_begin(self, input, label)
+                step_loss, output = self.step(input, label)  
+                self.schedule.on_batch_end(self, step_loss, input, output, label)
             
-            for cb in schedule.callbacks: cb.on_epoch_end(self, lossMeter)      
+            self.schedule.on_epoch_end(self)      
 
-            self.epoch += 1
+        self.schedule.on_train_end(self)   
 
-            if checkpoint_file != None: 
-                end = time.time()
-                elapsed = end - start
-
-                if elapsed > ckpt_interval:
-                    start = end
-                    self.checkpoint(checkpoint_file)
-                    print("\n--- CHECKPOINT ---")
-
-        for cb in schedule.callbacks: cb.on_train_end(self)   
-
-    def train(self, schedule, checkpoint_file=None, reset=False, ckpt_interval=5*60):      
+    def train(self, schedule):      
         with TrainModel(self.model):
-            self.run(schedule, checkpoint_file, reset)
+            self.run(schedule)
 
     def stop(self):
         self.running = False
@@ -263,22 +242,3 @@ class Session():
         if not apex_installed: raise ImportError("Please install apex from https://www.github.com/nvidia/apex to use MixedPrecision training.")
         self.mixed_precision = True
         self.model, self.optimizer = amp.initialize(self.model, self.optimizer, opt_level='O1')
-
-
-class TrainingSchedule():
-    def __init__(self, data, epochs, callbacks=[]):
-        self.data = data
-        self.callbacks = callbacks
-        self.epochs = epochs
-
-    def add_callback(self, callback):
-        self.callbacks.append(callback)
-
-    def state_dict(self):
-        callbacks_dict = [callback.state_dict() for callback in self.callbacks]
-        return pickle.dumps({'callbacks': callbacks_dict, 'epochs': self.epochs})
-
-    def load_state_dict(self, serialized_state_dict):
-        state_dict = pickle.loads(serialized_state_dict)
-        for cb, cb_state_dict in zip(self.callbacks, state_dict['callbacks']): cb.load_state_dict(cb_state_dict)
-        self.epochs = state_dict['epochs']

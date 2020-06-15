@@ -12,11 +12,13 @@ import time
 import pathlib
 from sklearn.metrics import label_ranking_loss, coverage_error, label_ranking_average_precision_score
 
+
 class _AccuracyMeter:
     def update(self, output, label): raise NotImplementedError
     def reset(self, output, label): raise NotImplementedError
     def metric(self): raise NotImplementedError
     def report(self): print(self.metric())
+
 
 class OneHotAccuracy(_AccuracyMeter):
     def __init__(self):
@@ -170,49 +172,39 @@ class NHotAccuracy(_AccuracyMeter):
 
 
 class Validator(TrainCallback):
-    def __init__(self, val_data, accuracy_meter=None, save_best=False, model_dir='./'):
-        self.val_data = val_data
+    def __init__(self, dataloader, accuracy_meter=None, metric_name="Accuracy/Validation"):
+        self.dataloader = dataloader
         self.accuracy_meter = accuracy_meter
-        self.best_metric = 0
-        self.save_best = save_best
-        self.batch = 0
-        self.model_dir = model_dir
-        pathlib.Path(model_dir).mkdir(parents=True, exist_ok=True)
+        self.metric_name = metric_name
+
+    def register_metric(self):
+        return [self.metric_name, "Loss/Validation"]
 
     def state_dict(self): return ""
     def load_state_dict(self, dict): pass
 
-    def run(self, session, lossMeter=None):
-        self.batch += 1
+    def run(self, session, cb_dict):
         if self.accuracy_meter is not None: self.accuracy_meter.reset()
         valLoss = sess.LossMeter()
         with sess.EvalModel(session.model) and torch.no_grad():
             for input, label, *_ in tqdm(self.val_data, desc="Validating", leave=False):
+
                 if isinstance(label, dict):
                     label = {key: Variable(value) for key, value in label.items()}  
                 else:
                     label = Variable(util.to_gpu(label))
+
                 output = session.forward(input)
                 step_loss = session.criterion(output, label).data
                 valLoss.update(step_loss, input.shape[0])
                 if self.accuracy_meter is not None:        
                     self.accuracy_meter.update(output, label)
         
-        metric = self.accuracy_meter.metric() if self.accuracy_meter is not None else 0
+        cb_dict["Loss/Validation"] = valLoss.raw_avg
+        if self.accuracy_meter is not None: cb_dict[self.metric_name] = self.accuracy_meter.metric()
         
-        if self.save_best and metric > self.best_metric:
-            self.best_metric = metric
-            session.add_meta("Best Accuracy", self.best_metric)
-            session.save(f'{self.model_dir}/best-{self.batch}-{round(self.best_metric.item(), 6)}')
-
-        if lossMeter is not None:
-            print(f"Training Loss: {lossMeter.debias} Validaton Loss: {valLoss.raw_avg}")
-        else:
-            print(f"Validaton Loss: {valLoss.raw_avg}")
-
-        if self.accuracy_meter is not None:
-            self.accuracy_meter.report()
+        if self.accuracy_meter is not None: self.accuracy_meter.report()
           
 
-    def on_epoch_end(self, session, lossMeter): 
-        self.run(session, lossMeter)
+    def on_epoch_end(self, session, schedule, cb_dict, *args, **kwargs): 
+        self.run(session, cb_dict)

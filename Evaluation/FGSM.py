@@ -115,16 +115,13 @@ def fgsm_plot(epsilons, accuracies, label=None, ax=None):
     return ax
     
 
-class FGSM(TrainCallback):
+class FGSM(StatelessTrainCallback):
   def __init__(self, dataloader, epsilons=[.05, .1, .15, .2], interval=20):
     super().__init__()
     self.dataloader = dataloader
     self.epsilons = epsilons
     self.interval = interval
     self.num_epochs = 0
-
-  def state_dict(self): return {}
-  def load_state_dict(self, state_dict): pass
 
   def run(self, session):
     accuracies, _ = fgsm_test_range(session.model, self.dataloader, self.epsilons)
@@ -138,12 +135,14 @@ class FGSM(TrainCallback):
 
     return accuracies
 
-  def on_epoch_end(self, session, lossMeter):
+  def on_epoch_end(self, session, schedule, cb_dict, *args, **kwargs):
     self.num_epochs += 1
     if self.num_epochs % self.interval != 0: return
      
     accuracies = self.run(session)
 
+    cb_dict["FGSM"] = accuracies
+    
     string = "\n  ".join([f"Epsilon={eps} Accuracy={acc:.6f}" for eps, acc in zip(self.epsilons, accuracies)])
     session.add_meta(f"FGSM Epoch {self.num_epochs}", string)
     

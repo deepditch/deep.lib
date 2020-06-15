@@ -4,20 +4,19 @@ from session import *
 from tqdm.notebook import tqdm
 from callbacks import *
     
-class AdvertorchCallback(TrainCallback):
-  def __init__(self, dataloader, adversary, interval=1, model_file=None):
+class AdvertorchCallback(StatelessTrainCallback):
+  def __init__(self, dataloader, adversary, metric_name="Adversary", interval=1):
     super().__init__()
     self.dataloader = dataloader
     self.adversary = adversary
     self.interval = interval
     self.num_epochs = 0
-    self.best = 0
-    self.model_file = model_file
+    self.metric_name = metric_name
 
-  def state_dict(self): return {}
-  def load_state_dict(self, state_dict): pass
+  def register_metric(self):
+    return self.metric_name
 
-  def run(self, session, log=True):
+  def run(self, session):
     correct = 0
     total = 0
 
@@ -33,20 +32,17 @@ class AdvertorchCallback(TrainCallback):
         correct += torch.sum(final_pred == label)
 
     acc = correct/float(total)
-    if log: print("{} Accuracy = {} / {} = {:.4f}".format(self.adversary.__class__.__name__, correct, total, acc*100))
     return acc
 
-  def on_epoch_end(self, session, lossMeter):
+  def on_epoch_end(self, session, schedule, cb_dict, *args, **kwargs):
     self.num_epochs += 1
-    if self.num_epochs % self.interval != 0: return
+    if self.num_epochs % self.interval != 0: 
+      cb_dict[self.metric_name] = None
+      return
      
     accuracy = self.run(session)
 
-    if self.model_file != None:
-        if accuracy > self.best:
-            self.best = accuracy
-            session.add_meta(f"{self.adversary.__class__.__name__} Best", str(self.best))
-            session.save(self.model_file)
+    cb_dict[self.metric_name] = accuracy
 
-    session.add_meta(f"{self.adversary.__class__.__name__} Epoch {self.num_epochs}", str(accuracy))
+    session.add_meta(f"{self.metric_name} Epoch {self.num_epochs}", str(accuracy))
     

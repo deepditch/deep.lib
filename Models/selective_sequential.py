@@ -12,6 +12,7 @@ from tqdm.notebook import tqdm
 import numpy as np
 import pickle
 
+
 class SelectiveSequential(nn.Module):
     def __init__(self, to_select, modules_dict):
         super(SelectiveSequential, self).__init__()
@@ -27,6 +28,7 @@ class SelectiveSequential(nn.Module):
                 list.append((x, name))
         return list
 
+
 class CustomOneHotAccuracy(OneHotAccuracy):
     def __init__(self):
         super().__init__()
@@ -35,150 +37,72 @@ class CustomOneHotAccuracy(OneHotAccuracy):
     def update(self, output, label):
         return super().update(output[-1], label)
 
-class EmbeddingSpaceValidator(TrainCallback):
-    def __init__(self, val_data, select, accuracy_meter_fn, loss_fn=F.multi_margin_loss, model_file=None, tensorboard_dir=None):
+
+class TripletRegularizedLossValidator(StatelessTrainCallback):
+    def __init__(self, val_data, select, loss_fn=F.multi_margin_loss):
         super().__init__()
+
         self.val_data = val_data
-        self.val_accuracy_meter = accuracy_meter_fn()
-        self.train_accuracy_meter = accuracy_meter_fn()
-        
-        self.train_accuracies = []
-        self.val_accuracies = []
-        
-        self.train_losses = []
-        self.train_raw_losses = []
 
-        self.val_losses = []
-        self.val_raw_losses = []
-        
-        self.num_batches = 0
-        self.num_epochs = 0
+        self.train_loss = LossMeter()
+        self.train_raw_loss = LossMeter()
+        self.train_accuracy = CustomOneHotAccuracy()
 
-        self.model_file = model_file
-
-        self.best_accuracy = 0
-
-        self.writer = SummaryWriter(log_dir=tensorboard_dir) if tensorboard_dir is not None else None    
+        self.valid_loss = LossMeter()
+        self.valid_raw_loss = LossMeter()
+        self.valid_accuracy = CustomOneHotAccuracy()
 
         self.loss_fn = loss_fn
 
-    def state_dict(self):
-        return pickle.dumps({k: self.__dict__[k] for k in set(['num_batches', 'num_epochs', 'model_file', 'best_accuracy'])})
-
-    def run(self, session, lossMeter=None):
-        self.val_accuracy_meter.reset()
-            
-        val_loss = LossMeter()
-        val_raw_loss = LossMeter()
-        
+    def run(self, session):         
         with EvalModel(session.model) and torch.no_grad():
             for input, label, *_ in tqdm(self.val_data, desc="Validating", leave=False):
                 label = Variable(util.to_gpu(label))
-                output = session.forward(input)
-                
-                step_loss = session.criterion(output, label).data.cpu()
-          
-                val_loss.update(step_loss, input.shape[0])
-                
-                val_raw_loss.update(self.loss_fn(output[-1], label).data.cpu(), input.shape[0])
-                
-                self.val_accuracy_meter.update(output, label)
-        
-        self.val_losses.append(val_loss.raw_avg.item())
-        self.val_raw_losses.append(val_raw_loss.raw_avg.item())
-         
-        accuracy = self.val_accuracy_meter.accuracy()
+                output = session.forward(input)   
 
-        if self.model_file != None and accuracy > self.best_accuracy:
-            session.add_meta("Best Accuracy", str(self.best_accuracy))
-            session.save(self.model_file)
-            self.best_accuracy = accuracy
+                valid_loss.update(session.criterion(output, label).data.cpu(), input.shape[0])
+                valid_raw_loss.update(self.loss_fn(output[-1], label).data.cpu(), input.shape[0])
+                
+                self.valid_accuracy.update(output, label)       
         
-        self.val_accuracies.append(accuracy)    
+    def on_epoch_begin(self, session, schedule, cb_dict, *args, **args):
+        self.train_loss.reset()
+        self.train_raw_loss.reset()
+        self.train_accuracy.reset()
+
+        self.valid_loss.reset()
+        self.valid_raw_loss.reset()
+        self.valid_accuracy.reset() 
+
+    def on_batch_end(self, session, schedule, cb_dict, loss, *args, **args):
+        label = Variable(util.to_gpu(label))
         
-    def on_epoch_begin(self, session):
-        self.train_accuracy_meter.reset()     
-        self.train_raw_loss_meter = LossMeter()
+        self.train_accuracy_meter.update(output, label)
+        self.train_loss_meter.update(loss)
+        self.train_raw_loss_meter.update(self.loss_fn(output[-1], label).data.cpu(), label.shape[0])
         
-    def on_epoch_end(self, session, lossMeter): 
-        self.train_accuracies.append(self.train_accuracy_meter.accuracy())
-        self.train_losses.append(lossMeter.debias.data.cpu().item())
-        
-        self.train_raw_losses.append(self.train_raw_loss_meter.raw_avg.data.cpu().item())
-        
-        self.run(session, lossMeter) 
+    def on_epoch_end(self, session, schedule, cb_dict, *args, **args):        
+        self.run(session) 
         self.num_epochs += 1
       
-        train_loss = self.train_losses[-1]
-        train_raw_loss = self.train_raw_losses[-1]
+        train_loss = self.train_loss.raw_avg
+        train_raw_loss = self.train_raw_loss.raw_avg
         train_triplet_loss = train_loss - train_raw_loss
 
-        val_loss = self.val_losses[-1]
-        val_raw_loss = self.val_raw_losses[-1]
-        val_triplet_loss = val_loss - val_raw_loss
-        
-        print("\nval accuracy: ", round(self.val_accuracies[-1], 4),
-              "train accuracy: ", round(self.train_accuracies[-1], 4),
-              "\ntrain loss: ", round(train_loss, 4), 
-              " train unreg loss: ", round(train_raw_loss, 4),     
-              " train triplet loss: ", round(train_triplet_loss, 4),   
-              "\nvalid loss: ", round(val_loss, 4), 
-              " valid unreg loss: ", round(val_raw_loss, 4),
-              " valid triplet loss: ", round(val_triplet_loss, 4)
-              )
+        valid_loss = self.valid_loss.raw_avg
+        valid_raw_loss = self.valid_raw_loss.raw_avg
+        valid_triplet_loss = valid_loss - valid_raw_loss
 
-        if self.writer is not None:
-            self.writer.add_scalars('Loss/Regularized', {'Train':self.train_losses[-1],
-                                                         'Test':self.val_losses[-1]}, self.num_batches)
+        cb_dict["Loss/Train"] = train_loss
+        cb_dict["Unregularized Loss/Train"] = train_raw_loss
+        cb_dict["Triplet Loss/Train"] = train_triplet_loss
 
-            self.writer.add_scalars('Loss/Reg Component', {'Train':train_triplet_loss,
-                                                           'Test':val_triplet_loss}, self.num_batches)
+        cb_dict["Loss/Valid"] = Valid_loss
+        cb_dict["Unregularized Loss/Valid"] = Valid_raw_loss
+        cb_dict["Triplet Loss/Valid"] = Valid_triplet_loss
 
-            self.writer.add_scalars('Loss/Unregularized', {'Train':self.train_raw_losses[-1],
-                                                           'Test':self.val_raw_losses[-1]}, self.num_batches)
-
-            self.writer.add_scalars('Accuracy', {'Train':self.train_accuracies[-1],
-                                                 'Test':self.val_accuracies[-1]}, self.num_batches)
-    
-    def on_batch_end(self, session, lossMeter, output, label):
-        label = Variable(util.to_gpu(label))
-        self.train_accuracy_meter.update(output, label)
-        self.train_raw_loss_meter.update(self.loss_fn(output[-1], label).data.cpu(), label.shape[0])
-            
-        self.num_batches += 1
-
-        if self.writer is not None:
-            self.writer.add_scalars('Loss/Training Batch', {
-                'Regularized': lossMeter.loss,
-                'Unregularized': self.train_raw_loss_meter.loss
-            }, self.num_batches)
-
-            
-    def plot(self, title="", file=None):
-        fig, (ax1, ax2, ax3, ax4) = plt.subplots(nrows=4, ncols=1, figsize=(15, 15))
-
-        fig.suptitle(f"{title} : Best Accuracy {np.max(self.val_accuracies)}", fontsize=14)
-            
-        ax1.set_title(f"Accuracy per Epoch")
-        ax1.plot(np.arange(0, self.num_epochs), self.train_accuracies, label="Training")
-        ax1.plot(np.arange(0, self.num_epochs), self.val_accuracies, label="Validation")
-
-        ax2.set_title(f"Regularizezd Loss per Epoch")
-        ax2.plot(np.arange(0, self.num_epochs), self.train_losses, label="Training")
-        ax2.plot(np.arange(0, self.num_epochs), self.val_losses, label="Validation")
-
-        ax3.set_title(f"Unregularizezd Loss per Epoch")
-        ax3.plot(np.arange(0, self.num_epochs), self.train_raw_losses, label="Training")   
-        ax3.plot(np.arange(0, self.num_epochs), self.val_raw_losses, label="Validation")
-            
-        for ax in (ax1, ax2, ax3, ax4):
-            box = ax.get_position()
-            ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
-            ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))   
-
-        plt.show()
-
-        if file is not None: fig.savefig(file)
+    def register_metrics(self):
+        return ["Loss/Train", "Unregularized Loss/Train", "Triplet Loss/Train", "Loss/Valid", "Unregularized Loss/Valid", "Triplet Loss/Valid"]
 
 
 def tensorboard_embeddings(model, select, dataloader, targets, images, board='./runs'):
@@ -224,17 +148,14 @@ def compute_embeddings(model, dataloader, max_num):
 
   return cat, labels
 
-class EmbeddingSpaceVisualizer(TrainCallback):
+class EmbeddingSpaceVisualizer(StatelessTrainCallback):
   def __init__(self, dataloader, interval=1):
     super().__init__()
     self.dataloader = dataloader
     self.interval = interval
     self.num_epochs = 0
 
-  def state_dict(self): return {}
-  def load_state_dict(self, state_dict): pass
-
-  def on_epoch_begin(self, session):
+  def on_epoch_begin(self, session, *args, **kwargs):
     self.num_epochs += 1
     if self.num_epochs % self.interval != 0: return
      
