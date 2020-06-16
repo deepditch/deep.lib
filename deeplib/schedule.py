@@ -36,11 +36,11 @@ class Logger(StatelessTrainCallback):
       self.print_header()
       self.printed_header = True
 
-    columns = [schedule.epoch] + [val for key, val in cb_dict.items() if key in self.metrics]
+    columns = [schedule.epoch] + [cb_dict[key] if key in cb_dict and cb_dict[key] is not None else "None" for key in self.metrics]
     metrics_string = self.format_column(columns)
 
     print(metrics_string)
-    print(self.divider())
+    # print(self.divider())
 
     session.append_meta("Training Log", "\n" + metrics_string)
 
@@ -64,8 +64,6 @@ class TrainingSchedule():
                 new_metric = [new_metric]
             
             self.metrics += new_metric
-
-        print(self.metrics)
 
         if len(self.metrics) > 0:
             self.callbacks.append(Logger(self.metrics))

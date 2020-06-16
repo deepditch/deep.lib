@@ -1,4 +1,5 @@
 import os
+import time
 import psutil
 import pickle
 import numpy as np
@@ -153,7 +154,9 @@ class Checkpoint(StatelessTrainCallback):
       self.reset = reset
 
   def on_train_begin(self, session, *args, **kwargs):
-      if not self.reset: session.load(self.ckpt_file)
+      if os.path.exists(self.ckpt_file) and not self.reset: 
+        print("--- LOADING CHECKPOINT ---")
+        session.load(self.ckpt_file)
       self.start_time = time.time()      
 
   def on_batch_end(self, session, *args, **kwargs):
@@ -163,4 +166,4 @@ class Checkpoint(StatelessTrainCallback):
       if elapsed > self.interval:
           self.start_time = end
           session.checkpoint(self.ckpt_file)
-          print("\n--- CHECKPOINT ---")
+          print("--- CHECKPOINT ---")

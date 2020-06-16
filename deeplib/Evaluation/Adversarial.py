@@ -13,7 +13,6 @@ class AdvertorchCallback(StatelessTrainCallback):
     self.dataloader = dataloader
     self.adversary = adversary
     self.interval = interval
-    self.num_epochs = 0
     self.metric_name = metric_name
 
   def register_metric(self):
@@ -38,8 +37,7 @@ class AdvertorchCallback(StatelessTrainCallback):
     return acc
 
   def on_epoch_end(self, session, schedule, cb_dict, *args, **kwargs):
-    self.num_epochs += 1
-    if self.num_epochs % self.interval != 0: 
+    if schedule.epoch % self.interval != 0: 
       cb_dict[self.metric_name] = None
       return
      

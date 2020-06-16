@@ -41,7 +41,7 @@ class CustomOneHotAccuracy(OneHotAccuracy):
 
 
 class TripletRegularizedLossValidator(StatelessTrainCallback):
-    def __init__(self, val_data, loss_fn=F.multi_margin_loss):
+    def __init__(self, val_data, loss_fn=F.multi_margin_loss, interval=1):
         super().__init__()
 
         self.val_data = val_data
@@ -56,7 +56,9 @@ class TripletRegularizedLossValidator(StatelessTrainCallback):
 
         self.loss_fn = loss_fn
 
-    def run(self, session):         
+        self.interval = interval
+
+    def run(self, session, cb_dict):         
         with EvalModel(session.model) and torch.no_grad():
             for input, label, *_ in tqdm(self.val_data, desc="Validating", leave=False):
                 label = Variable(util.to_gpu(label))
@@ -66,6 +68,15 @@ class TripletRegularizedLossValidator(StatelessTrainCallback):
                 self.valid_raw_loss.update(self.loss_fn(output[-1], label).data.cpu(), input.shape[0])
                 
                 self.valid_accuracy.update(output, label)       
+
+        valid_loss = self.valid_loss.raw_avg
+        valid_raw_loss = self.valid_raw_loss.raw_avg
+        valid_triplet_loss = valid_loss - valid_raw_loss
+
+        cb_dict["Loss/Valid"] = valid_loss
+        cb_dict["Raw/Valid"] = valid_raw_loss
+        cb_dict["Trip/Valid"] = valid_triplet_loss
+        cb_dict["Acc/Valid"] = self.valid_accuracy.metric()
         
     def on_epoch_begin(self, session, schedule, cb_dict, *args, **kwargs):
         self.train_loss.reset()
@@ -84,8 +95,6 @@ class TripletRegularizedLossValidator(StatelessTrainCallback):
         self.train_raw_loss.update(self.loss_fn(output[-1], label).data.cpu(), label.shape[0])
         
     def on_epoch_end(self, session, schedule, cb_dict, *args, **kwargs):        
-        self.run(session) 
-      
         train_loss = self.train_loss.raw_avg
         train_raw_loss = self.train_raw_loss.raw_avg
         train_triplet_loss = train_loss - train_raw_loss
@@ -95,14 +104,13 @@ class TripletRegularizedLossValidator(StatelessTrainCallback):
         cb_dict["Trip/Train"] = train_triplet_loss
         cb_dict["Acc/Train"] = self.train_accuracy.metric()
 
-        valid_loss = self.valid_loss.raw_avg
-        valid_raw_loss = self.valid_raw_loss.raw_avg
-        valid_triplet_loss = valid_loss - valid_raw_loss
-
-        cb_dict["Loss/Valid"] = valid_loss
-        cb_dict["Raw/Valid"] = valid_raw_loss
-        cb_dict["Trip/Valid"] = valid_triplet_loss
-        cb_dict["Acc/Valid"] = self.valid_accuracy.metric()
+        if schedule.epoch % self.interval == 0: 
+            self.run(session, cb_dict) 
+        else:
+            cb_dict["Loss/Valid"] = None
+            cb_dict["Raw/Valid"] = None
+            cb_dict["Trip/Valid"] = None
+            cb_dict["Acc/Valid"] = None
 
     def register_metric(self):
         return ["Loss/Train", "Loss/Valid", "Raw/Train", "Raw/Valid", "Trip/Train", "Trip/Valid", "Acc/Train", "Acc/Valid"]
