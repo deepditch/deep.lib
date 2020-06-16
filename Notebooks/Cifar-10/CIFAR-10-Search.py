@@ -91,7 +91,7 @@ for param in [0, .05, .1, .15, .2, .25]:
     criterion = TripletRegularizedMultiMarginLoss(param, .5, select)
     sess = Session(make_model(), criterion, optim.AdamW, 1e-4)
     num_epochs = 128
-    validator = EmbeddingSpaceValidator(testloader, select, CustomOneHotAccuracy, model_file=f"best-{param}", tensorboard_dir=f"./runs/lambda{param}")
+    validator = TripletRegularizedLossValidator(testloader, select, CustomOneHotAccuracy, model_file=f"best-{param}", tensorboard_dir=f"./runs/lambda{param}")
     lr_scheduler = CosAnneal(len(dataloader), T_mult=2, lr_min=1e-7)
     schedule = TrainingSchedule(trainloader, num_epochs, [lr_scheduler, validator])
     sess.train(schedule, checkpoint_file=f"ckpt-{param}", ckpt_interval=60*60)
