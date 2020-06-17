@@ -119,15 +119,17 @@ class TensorboardLogger(StatelessTrainCallback):
         self.on_epoch_metrics = schedule.metrics
 
     def on_batch_end(self, session, schedule, cb_dict, loss, input, output, label):
-      if on_batch_metrics == []:
+      if self.on_batch_metrics == []:
         self.writer.add_scalar('Loss/train', loss, schedule.iteration)
       else:
         for metric in self.on_batch_metrics:
-          self.writer.add_scalar(metric, cb_dict[metric], schedule.iteration)
+          if metric in cb_dict and cb_dict[metric] is not None:
+            self.writer.add_scalar(metric, cb_dict[metric], schedule.iteration)
 
     def on_epoch_end(self, session, schedule, cb_dict):
       for metric in self.on_epoch_metrics:
-        self.writer.add_scalar(metric, cb_dict[metric], schedule.iteration)
+        if metric in cb_dict and cb_dict[metric] is not None:
+          self.writer.add_scalar(metric, cb_dict[metric], schedule.iteration)
 
     def __del__(self):
         self.writer.close()
