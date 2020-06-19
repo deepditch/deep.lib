@@ -5,6 +5,7 @@ import torch.nn.functional as F
 
 from deeplib.Loss.triplet import *
 
+
 class TripletRegularizedLoss(nn.Module):
     def __init__(self, alpha, margin, loss_fn, triplet_loss_fn=batch_all_triplet_loss):     
         super().__init__()
@@ -25,9 +26,11 @@ class TripletRegularizedLoss(nn.Module):
             
         return loss + triplet
 
+
 class TripletRegularizedCrossEntropyLoss(TripletRegularizedLoss):
     def __init__(self, alpha, margin, select=None, triplet_loss_fn=batch_all_triplet_loss):     
         super(TripletRegularizedCrossEntropyLoss, self).__init__(alpha, margin, F.cross_entropy, triplet_loss_fn)
+
 
 class TripletRegularizedMultiMarginLoss(TripletRegularizedLoss):
     def __init__(self, alpha, margin, select=None, triplet_loss_fn=batch_all_triplet_loss):     
@@ -45,5 +48,19 @@ class MarginRegularizedCrossEntropyLoss(DistanceWeightedMarginLoss):
 
     margin_loss = super().forward(embed, y)
     out_loss = F.cross_entropy(out, y)
+    
+    return out_loss + self.lmbda * margin_loss
+
+class MarginRegularizedMultiMarginLoss(DistanceWeightedMarginLoss):
+  def __init__(self, lmbda, num_classes, margin=.2, beta=1.2, nonzero_loss_cutoff=1.4, cutoff=0.5):
+    super(MarginRegularizedMultiMarginLoss, self).__init__(num_classes, margin, beta, nonzero_loss_cutoff, cutoff)
+    self.lmbda = lmbda
+
+  def forward(self, x, y):
+    embed = x[0]
+    out = x[1]
+
+    margin_loss = super().forward(embed, y)
+    out_loss = F.multi_margin_loss(out, y)
     
     return out_loss + self.lmbda * margin_loss

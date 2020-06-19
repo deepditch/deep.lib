@@ -89,8 +89,7 @@ class Session():
         with open(file, mode="w") as f:
             for key, val in self.meta.items():
                 f.write(f"## {key} \n")
-                f.write(f"{val} \n")
-
+                f.write(f"{val} \n\n")
 
     def _save(self, name):
         state = {
