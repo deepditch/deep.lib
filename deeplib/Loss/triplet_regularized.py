@@ -51,6 +51,7 @@ class MarginRegularizedCrossEntropyLoss(DistanceWeightedMarginLoss):
     
     return out_loss + self.lmbda * margin_loss
 
+
 class MarginRegularizedMultiMarginLoss(DistanceWeightedMarginLoss):
   def __init__(self, lmbda, num_classes, margin=.2, beta=1.2, nonzero_loss_cutoff=1.4, cutoff=0.5):
     super(MarginRegularizedMultiMarginLoss, self).__init__(num_classes, margin, beta, nonzero_loss_cutoff, cutoff)

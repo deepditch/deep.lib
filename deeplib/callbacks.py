@@ -140,7 +140,7 @@ class OptimizerStepper(TrainCallback):
     super().__init__()
     self.optimizer = optimizer
 
-  def state_dict(self): return self.optimizer.state_dict
+  def state_dict(self): return self.optimizer.state_dict()
   def load_state_dict(self, state_dict): self.optimizer.load_state_dict(state_dict)
 
   def on_epoch_end(self, *args, **kwargs):

@@ -3,7 +3,6 @@ import matplotlib.pyplot as plt
 import matplotlib.cm as cmx
 import matplotlib.colors as mcolors
 from matplotlib import patches, patheffects
-
 from cycler import cycler
 
 from deeplib.Transforms.ImageTransforms import *
