@@ -25,6 +25,7 @@ class Logger(StatelessTrainCallback):
 
   def on_train_begin(self, session, schedule, cb_dict, *args, **kwargs):
     session.add_meta("Training Log", self.format_column(["Epoch"] + self.metrics) + "\n" + self.divider(sep="|"))
+    cb_dict["print-width"] = sum(self.widths) + (len(self.widths) * 3) + 1
 
   def print_header(self):
     print(self.divider())

@@ -161,11 +161,17 @@ class Checkpoint(StatelessTrainCallback):
         session.load(self.ckpt_file)
       self.start_time = time.time()      
 
-  def on_batch_end(self, session, *args, **kwargs):
+  def on_batch_end(self, session, schedule, cb_dict, *args, **kwargs):
       end = time.time()
       elapsed = end - self.start_time
 
       if elapsed > self.interval:
           self.start_time = end
           session.checkpoint(self.ckpt_file)
-          print("--- CHECKPOINT ---")
+          if "print-width" in cb_dict:
+            half_width = (cb_dict["print-width"] - 9) / 2
+            left = "+" + ("-" * (floor(half_width) - 1))
+            right = ("-" * (ceil(half_width) - 1)) + "+"
+            print(left + " CHECKPOINT " + right)
+          else:
+            print("--- CHECKPOINT ---")
