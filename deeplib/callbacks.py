@@ -1,4 +1,5 @@
 import os
+import math
 import time
 import psutil
 import pickle
@@ -170,8 +171,8 @@ class Checkpoint(StatelessTrainCallback):
           session.checkpoint(self.ckpt_file)
           if "print-width" in cb_dict:
             half_width = (cb_dict["print-width"] - 9) / 2
-            left = "+" + ("-" * (floor(half_width) - 1))
-            right = ("-" * (ceil(half_width) - 1)) + "+"
+            left = "+" + ("-" * (math.floor(half_width) - 1))
+            right = ("-" * (math.ceil(half_width) - 1)) + "+"
             print(left + " CHECKPOINT " + right)
           else:
             print("--- CHECKPOINT ---")
