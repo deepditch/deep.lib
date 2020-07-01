@@ -53,6 +53,8 @@ class SaveBest(TrainCallback):
         self.best = float("-inf") if higher_is_better else float("inf")
 
     def on_epoch_end(self, session, schedule, cb_dict, *args, **kwargs):
+      if self.metric_name not in cb_dict or self.metric_name[cb_dict] is None: return
+
       if (self.best < cb_dict[self.metric_name] and self.higher_is_better) or (self.best > cb_dict[self.metric_name] and not self.higher_is_better):
         self.best = cb_dict[self.metric_name]
         session.save(self.model_path)
@@ -170,7 +172,7 @@ class Checkpoint(StatelessTrainCallback):
           self.start_time = end
           session.checkpoint(self.ckpt_file)
           if "print-width" in cb_dict:
-            half_width = (cb_dict["print-width"] - 9) / 2
+            half_width = (cb_dict["print-width"] - 12) / 2
             left = "+" + ("-" * (math.floor(half_width) - 1))
             right = ("-" * (math.ceil(half_width) - 1)) + "+"
             print(left + " CHECKPOINT " + right)
