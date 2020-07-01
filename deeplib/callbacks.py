@@ -53,7 +53,7 @@ class SaveBest(TrainCallback):
         self.best = float("-inf") if higher_is_better else float("inf")
 
     def on_epoch_end(self, session, schedule, cb_dict, *args, **kwargs):
-      if self.metric_name not in cb_dict or self.metric_name[cb_dict] is None: return
+      if self.metric_name not in cb_dict or cb_dict[self.metric_name] is None: return
 
       if (self.best < cb_dict[self.metric_name] and self.higher_is_better) or (self.best > cb_dict[self.metric_name] and not self.higher_is_better):
         self.best = cb_dict[self.metric_name]
