@@ -181,7 +181,7 @@ class Validator(TrainCallback):
         self.metric_name = metric_name
 
     def register_metric(self):
-        return [self.metric_name, "Loss/Validation"]
+        return [self.metric_name, "Loss/Validation"] if self.accuracy_meter is not None else "Loss/Validation"
 
     def state_dict(self): return ""
     def load_state_dict(self, dict): pass
