@@ -12,7 +12,7 @@ import torch.optim as optim
 from torch.autograd import Variable
 from torch.utils.tensorboard import SummaryWriter
 
-from deeplib.session import *
+import deeplib.util
 
 
 class TrainCallback:
@@ -97,7 +97,7 @@ class GPUMemoryProfiler(StatelessTrainCallback):
 class TrainingLossLogger(TrainCallback):
   def __init__(self, metric_name = "Loss/Train"):
     self.metric_name = metric_name
-    self.loss_meter = LossMeter()
+    self.loss_meter = deeplib.util.LossMeter()
 
   def register_metric(self):
     return self.metric_name
