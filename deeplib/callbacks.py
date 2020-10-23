@@ -12,6 +12,8 @@ import torch.optim as optim
 from torch.autograd import Variable
 from torch.utils.tensorboard import SummaryWriter
 
+from deeplib.session import *
+
 
 class TrainCallback:
     def on_train_begin(self, session, schedule, cb_dict): pass
