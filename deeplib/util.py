@@ -31,3 +31,49 @@ def bn2float(module:torch.nn.Module)->torch.nn.Module:
 def model2half(model:torch.nn.Module)->torch.nn.Module:
     "Convert `model` to half precision except the batchnorm layers."
     return bn2float(model.half())
+
+class TrainModel():
+    def __init__(self, model):
+        self.model = model
+        self.was_training = model.training
+
+    def __enter__(self):
+        self.model.train()
+
+    def __exit__(self, type, value, traceback):
+        self.model.train(mode=self.was_training)
+
+class EvalModel():
+    def __init__(self, model):
+        self.model = model
+        self.was_training = model.training
+
+    def __enter__(self):
+        self.model.eval()
+
+    def __exit__(self, type, value, traceback):
+        self.model.train(mode=self.was_training)
+
+class LossMeter(object):
+    def __init__(self):
+        self.reset()
+
+    def reset(self):
+        self.loss = 0
+        self.raw_avg = 0
+        self.interpolated_avg = 0
+        self.debias = 0
+        self.sum = 0
+        self.count = 0
+        self.batches = 0
+
+    def update(self, loss, n=1):
+        self.loss = loss
+        self.sum += loss * n
+        self.count += n
+        self.batches += 1
+        self.raw_avg = self.sum / self.count
+
+        # When training on a large dataset, this average weights later batches higher than earlier batches
+        self.interpolated_avg = self.interpolated_avg * .98 + loss * (1-.98)
+        self.debias = self.interpolated_avg / (1 - .98**self.batches)
