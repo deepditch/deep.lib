@@ -22,9 +22,27 @@ try:
 except ImportError:
     apex_installed = False
 
+torch_xla_installed = True
+
+try:
+    import torch_xla
+    import torch_xla.core.xla_model as xm
+    import torch_xla.distributed.xla_multiprocessing as xmp
+    import torch_xla.distributed.parallel_loader as pl
+except ImportError:
+    torch_xla_installed = False
+                
+
 class Session():
-    def __init__(self, model, criterion, optim_fn, lrs=1e-3, **kwargs):
-        self.model = util.to_gpu(model)
+    def __init__(self, model, criterion, optim_fn, lrs=1e-3, tpu=False **kwargs):
+        self.tpu = tpu
+
+        if self.tpu and not torch_xla_installed: raise ImportError("Please install torch_xla to use tpu training.")
+
+        else: 
+            self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+            self.model = model.to(self.device)
+
         self.criterion = criterion    
         self.optim_fn = optim_fn
         param_arr = [{'params':layer.parameters(), 'lr':0} for layer in self.model.children()]
@@ -32,6 +50,7 @@ class Session():
         self.set_lr(lrs) # Update learning rate from passed lrs
         self.running = False
         self.mixed_precision = False
+        self.tpu = False
         self.schedule = None
         self.meta = {}
 
@@ -151,19 +170,19 @@ class Session():
 
     def forward(self, input):
         if isinstance(input, dict):
-            input = {key: Variable(util.to_gpu(value)) for key, value in input.items()}  
+            input = {key: Variable(value.to(self.device)) for key, value in input.items()}  
             return self.model(**input), input
         else:
-            input = Variable(util.to_gpu(input))
-            return self.model(Variable(util.to_gpu(input))), input
+            input = Variable(input.to(self.device))
+            return self.model(Variable(input.to(self.device))), input
 
     def step(self, input, label):                              
         outputs, input = self.forward(input) 
 
         if isinstance(label, dict):
-            label = {key: Variable(util.to_gpu(value)) for key, value in label.items()}  
+            label = {key: Variable(value.to(self.device)) for key, value in label.items()}  
         else:
-            label = Variable(util.to_gpu(label))
+            label = Variable(label.to(self.device))
                 
         loss = self.criterion(outputs, label)
 
@@ -172,6 +191,8 @@ class Session():
         if self.mixed_precision:
             with amp.scale_loss(loss, self.optimizer) as scaled_loss: 
                 scaled_loss.backward()
+        elif self.tpu:
+            xm.optimizer_step(optimizer)
         else: 
             loss.backward()  
 
@@ -180,29 +201,35 @@ class Session():
         return loss.data, input, outputs, label                                 
 
     def run(self, schedule):
-        self.running = True
-        self.schedule = schedule
-
-        schedule.on_train_begin(self)       
-        
-        for epoch in self.schedule:
-            if not self.running: break
-            
-            self.schedule.on_epoch_begin(self)
-            
-            for input, label, *_ in self.schedule.data():
-                if not self.running: break
-                self.schedule.on_batch_begin(self, input, label)
-                step_loss, input, output, label = self.step(input, label)  
-                self.schedule.on_batch_end(self, step_loss, input, output, label)
-            
-            self.schedule.on_epoch_end(self)      
-
-        self.schedule.on_train_end(self)   
-
-    def train(self, schedule):      
         with TrainModel(self.model):
-            self.run(schedule)
+            self.running = True
+            self.schedule = schedule
+
+            schedule.on_train_begin(self)       
+            
+            for epoch in self.schedule:
+                if not self.running: break
+                
+                self.schedule.on_epoch_begin(self)
+                
+                for input, label, *_ in self.schedule.data():
+                    if not self.running: break
+                    self.schedule.on_batch_begin(self, input, label)
+                    step_loss, input, output, label = self.step(input, label)  
+                    self.schedule.on_batch_end(self, step_loss, input, output, label)
+                
+                self.schedule.on_epoch_end(self)      
+
+            self.schedule.on_train_end(self)   
+
+    @staticmethod
+    def xmp_run_wrapper(idx, self, schedule): 
+        self.device = xm.xla_device()
+        self.run(schedule)
+
+    def train(self, schedule):
+        if not self.tpu: self.run(schedule)
+        else: xmp.spawn(Session.xmp_run_wrapper, args=(self, schedule), nprocs=8, start_method='fork')
 
     def stop(self):
         self.running = False

@@ -99,7 +99,11 @@ class TrainingSchedule():
         self.iteration = state_dict['iteration']
         self.cb_dict = state_dict['cb_dict']
 
-    def on_train_begin(self, session):        
+    def on_train_begin(self, session):
+        if session.tpu:
+            import torch_xla.distributed.parallel_loader as pl
+            self.dataloader = pl.ParallelLoader(self.dataloader, [device]).per_device_loader(device)
+
         for cb in self.callbacks:
             cb.on_train_begin(session, self, self.cb_dict)
 
