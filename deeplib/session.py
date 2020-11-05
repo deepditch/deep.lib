@@ -150,7 +150,12 @@ class Session():
             for pg in self.optimizer.param_groups: pg['momentum'] = mom
 
     def forward(self, input):
-        return self.model(Variable(util.to_gpu(input)))
+        if isinstance(label, dict):
+            input = {key: Variable(value) for key, value in label.items()}  
+            return self.model(**input)
+        else:
+            input = Variable(util.to_gpu(label))
+            return self.model(Variable(util.to_gpu(input)))
 
     def step(self, input, label):                              
         outputs = self.forward(input) 
