@@ -152,13 +152,13 @@ class Session():
     def forward(self, input):
         if isinstance(input, dict):
             input = {key: Variable(util.to_gpu(value)) for key, value in input.items()}  
-            return self.model(**input)
+            return self.model(**input), input
         else:
             input = Variable(util.to_gpu(input))
-            return self.model(Variable(util.to_gpu(input)))
+            return self.model(Variable(util.to_gpu(input))), input
 
     def step(self, input, label):                              
-        outputs = self.forward(input) 
+        outputs, input = self.forward(input) 
 
         if isinstance(label, dict):
             label = {key: Variable(util.to_gpu(value)) for key, value in label.items()}  
@@ -177,7 +177,7 @@ class Session():
 
         self.optimizer.step()
 
-        return loss.data, outputs                                 
+        return loss.data, input, outputs, label                                 
 
     def run(self, schedule):
         self.running = True
@@ -193,7 +193,7 @@ class Session():
             for input, label, *_ in self.schedule.data():
                 if not self.running: break
                 self.schedule.on_batch_begin(self, input, label)
-                step_loss, output = self.step(input, label)  
+                step_loss, input, output, label = self.step(input, label)  
                 self.schedule.on_batch_end(self, step_loss, input, output, label)
             
             self.schedule.on_epoch_end(self)      

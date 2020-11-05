@@ -100,7 +100,7 @@ class TrainingAccuracyLogger(TrainCallback):
     self.accuracy_meter.reset()
 
   def on_batch_end(self, session, schedule, cb_dict, loss, input, output, label, *args, **kwargs):
-    self.accuracy_meter.update(output.cpu(), label.cpu())
+    self.accuracy_meter.update(output, label)
 
   def on_epoch_end(self, session, schedule, cb_dict): 
     cb_dict[self.metric_name] = self.accuracy_meter.metric()
