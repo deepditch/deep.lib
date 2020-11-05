@@ -151,7 +151,7 @@ class Session():
 
     def forward(self, input):
         if isinstance(input, dict):
-            input = {key: Variable(value) for key, value in input.items()}  
+            input = {key: Variable(util.to_gpu(value)) for key, value in input.items()}  
             return self.model(**input)
         else:
             input = Variable(util.to_gpu(input))
@@ -161,7 +161,7 @@ class Session():
         outputs = self.forward(input) 
 
         if isinstance(label, dict):
-            label = {key: Variable(value) for key, value in label.items()}  
+            label = {key: Variable(util.to_gpu(value)) for key, value in label.items()}  
         else:
             label = Variable(util.to_gpu(label))
                 
