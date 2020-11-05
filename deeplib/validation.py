@@ -20,7 +20,6 @@ class _AccuracyMeter:
     def update(self, output, label): raise NotImplementedError
     def reset(self, output, label): raise NotImplementedError
     def metric(self): raise NotImplementedError
-    def report(self): print(self.metric())
 
 
 class OneHotAccuracy(_AccuracyMeter):
@@ -204,10 +203,7 @@ class Validator(TrainCallback):
                     self.accuracy_meter.update(output, label)
         
         cb_dict["Loss/Validation"] = valLoss.raw_avg
-        if self.accuracy_meter is not None: cb_dict[self.metric_name] = self.accuracy_meter.metric()
-        
-        if self.accuracy_meter is not None: self.accuracy_meter.report()
-          
+        if self.accuracy_meter is not None: cb_dict[self.metric_name] = self.accuracy_meter.metric()         
 
     def on_epoch_end(self, session, schedule, cb_dict, *args, **kwargs): 
         self.run(session, cb_dict)
