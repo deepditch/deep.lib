@@ -26,11 +26,9 @@ class TrainCallback:
     def load_state_dict(self, state_dict): self.__dict__.update(pickle.loads(state_dict)) 
     def register_metric(self): pass
 
-
 class StatelessTrainCallback(TrainCallback):
   def state_dict(self): return None
   def load_state_dict(self, state_dict): pass 
-      
 
 class Saver(TrainCallback):
     def __init__(self, dir):
@@ -45,7 +43,6 @@ class Saver(TrainCallback):
     def on_epoch_end(self, session, *args, **kwargs):
         self.epoch += 1
         session.save('model.%d' % self.epoch)
-
 
 class SaveBest(TrainCallback):
     def __init__(self, model_path: str, metric_name: str, higher_is_better: bool):
@@ -62,7 +59,6 @@ class SaveBest(TrainCallback):
         session.save(self.model_path)
         session.add_meta(f"Best {self.metric_name}", f"{self.best} at epoch {schedule.epoch}")
 
-
 MEGA = 10 ** 6
 MEGA_STR = ' ' * MEGA
 
@@ -77,7 +73,6 @@ class MemoryProfiler(StatelessTrainCallback):
     def on_train_begin(self, *args, **kwargs): self.print_profile("on_train_begin")
     def on_epoch_end(self, *args, **kwargs): self.print_profile("on_epoch_end")
     def on_train_end(self, *args, **kwargs): self.print_profile("on_train_end")
-
 
 class GPUMemoryProfiler(StatelessTrainCallback):
   def print_profile(self):
@@ -94,7 +89,7 @@ class GPUMemoryProfiler(StatelessTrainCallback):
     self.print_profile()  
 
 class TrainingAccuracyLogger(TrainCallback):
-  def __init__(self, accuracy_meter, metric_names = "Accuracy/Train"):
+  def __init__(self, accuracy_meter, metric_name = "Accuracy/Train"):
     self.metric_name = metric_name
     self.accuracy_meter = accuracy_meter
 
@@ -111,7 +106,7 @@ class TrainingAccuracyLogger(TrainCallback):
     cb_dict[self.metric_name] = self.accuracy_meter.metric()
 
 class TrainingLossLogger(TrainCallback):
-  def __init__(self, accuracy_meter=None, metric_names = "Loss/Train"):
+  def __init__(self, accuracy_meter=None, metric_name = "Loss/Train"):
     self.metric_name = metric_name
     self.loss_meter = deeplib.util.LossMeter()
     self.accuracy_meter = accuracy_meter
@@ -130,7 +125,6 @@ class TrainingLossLogger(TrainCallback):
   def on_epoch_end(self, session, schedule, cb_dict): 
     cb_dict[self.metric_name] = self.loss_meter.raw_avg
     cb_dict[self.metric_name] = self.loss_meter.raw_avg
-
 
 class TensorboardLogger(StatelessTrainCallback):
     def __init__(self, directory="./runs/", on_batch_metrics=[], on_epoch_metrics=[]):
@@ -158,7 +152,6 @@ class TensorboardLogger(StatelessTrainCallback):
     def __del__(self):
         self.writer.close()
 
-
 class OptimizerStepper(TrainCallback):
   def __init__(self, optimizer):
     super().__init__()
@@ -170,7 +163,6 @@ class OptimizerStepper(TrainCallback):
   def on_epoch_end(self, *args, **kwargs):
     self.optimizer.step()
     self.optimizer.zero_grad()
-
 
 class Checkpoint(StatelessTrainCallback):
   def __init__(self, ckpt_file, interval=5*60, reset=False):
