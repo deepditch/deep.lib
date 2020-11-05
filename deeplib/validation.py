@@ -199,7 +199,7 @@ class Validator(TrainCallback):
 
                 output = session.forward(input)
                 step_loss = session.criterion(output, label).data
-                valLoss.update(step_loss, input.shape[0])
+                valLoss.update(step_loss, label.shape[0])
                 if self.accuracy_meter is not None:        
                     self.accuracy_meter.update(output, label)
         
