@@ -193,12 +193,14 @@ class Validator(TrainCallback):
 
                 if isinstance(label, dict):
                     label = {key: Variable(util.to_gpu(value)) for key, value in label.items()}  
+                    count = 1
                 else:
                     label = Variable(util.to_gpu(label))
+                    count = label.shape[0]
 
                 output, _ = session.forward(input)
                 step_loss = session.criterion(output, label).data
-                valLoss.update(step_loss, label.shape[0])
+                valLoss.update(step_loss, count)
                 if self.accuracy_meter is not None:        
                     self.accuracy_meter.update(output, label)
         

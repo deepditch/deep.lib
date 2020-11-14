@@ -106,10 +106,9 @@ class TrainingAccuracyLogger(TrainCallback):
     cb_dict[self.metric_name] = self.accuracy_meter.metric()
 
 class TrainingLossLogger(TrainCallback):
-  def __init__(self, accuracy_meter=None, metric_name = "Loss/Train"):
+  def __init__(self, metric_name = "Loss/Train"):
     self.metric_name = metric_name
     self.loss_meter = deeplib.util.LossMeter()
-    self.accuracy_meter = accuracy_meter
 
   def register_metric(self):
     return self.metric_name
@@ -120,10 +119,8 @@ class TrainingLossLogger(TrainCallback):
   def on_batch_end(self, session, schedule, cb_dict, loss, *args, **kwargs):
     cb_dict[self.metric_name] = loss
     self.loss_meter.update(loss)
-    if self.accuracy_meter is not None: self.accuracy_meter.update(output, label)
 
   def on_epoch_end(self, session, schedule, cb_dict): 
-    cb_dict[self.metric_name] = self.loss_meter.raw_avg
     cb_dict[self.metric_name] = self.loss_meter.raw_avg
 
 class TensorboardLogger(StatelessTrainCallback):
