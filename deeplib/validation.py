@@ -192,7 +192,7 @@ class Validator(TrainCallback):
             for input, label, *_ in tqdm(self.dataloader, desc="Validating", leave=False):
 
                 if isinstance(label, dict):
-                    label = {key: Variable(value) for key, value in label.items()}  
+                    label = {key: Variable(util.to_gpu(value)) for key, value in label.items()}  
                 else:
                     label = Variable(util.to_gpu(label))
 
