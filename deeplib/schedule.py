@@ -28,12 +28,12 @@ class Logger(StatelessTrainCallback):
     cb_dict["print-width"] = sum(self.widths) + (len(self.widths) * 3) + 1
     
   def on_train_end(self, *args, **kwargs):
-    print(self.divider())
+    tqdm.write((self.divider())
 
   def print_header(self):
-    print(self.divider())
-    print(self.format_column(["Epoch"] + self.metrics))
-    print(self.divider("="))
+    tqdm.write((self.divider())
+    tqdm.write((self.format_column(["Epoch"] + self.metrics))
+    tqdm.write((self.divider("="))
 
   def on_epoch_end(self, session, schedule, cb_dict, *args, **kwargs): 
     if not self.printed_header:
@@ -43,7 +43,7 @@ class Logger(StatelessTrainCallback):
     columns = [schedule.epoch+1] + [cb_dict[key] if key in cb_dict and cb_dict[key] is not None else "None" for key in self.metrics]
     metrics_string = self.format_column(columns)
 
-    print(metrics_string)
+    tqdm.write((metrics_string)
     # print(self.divider())
 
     session.append_meta("Training Log", "\n" + metrics_string)
