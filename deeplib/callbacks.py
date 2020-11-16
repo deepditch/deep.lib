@@ -77,10 +77,10 @@ class MemoryProfiler(StatelessTrainCallback):
 class GPUMemoryProfiler(StatelessTrainCallback):
   def print_profile(self):
     stats = torch.cuda.memory_stats()
-    print(f"{stats['allocated_bytes.all.current']:<30,} {stats['allocated_bytes.all.peak']:<30,} {torch.cuda.get_device_properties('cuda').total_memory:<30,}")
+    tqdm.write(f"{stats['allocated_bytes.all.current']:<30,} {stats['allocated_bytes.all.peak']:<30,} {torch.cuda.get_device_properties('cuda').total_memory:<30,}")
 
   def on_epoch_begin(self, *args, **kwargs):
-    print(f"{'current': <30} {'peak': <30} {'total': <30}")
+    tqdm.write(f"{'current': <30} {'peak': <30} {'total': <30}")
 
   def on_batch_begin(self, *args, **kwargs): 
     self.print_profile()
@@ -170,7 +170,7 @@ class Checkpoint(StatelessTrainCallback):
 
   def on_train_begin(self, session, *args, **kwargs):
       if os.path.exists(self.ckpt_file) and not self.reset: 
-        print("--- LOADING CHECKPOINT ---")
+        tqdm.write("--- LOADING CHECKPOINT ---")
         session.load(self.ckpt_file)
       self.start_time = time.time()      
 
@@ -185,6 +185,6 @@ class Checkpoint(StatelessTrainCallback):
             half_width = (cb_dict["print-width"] - 12) / 2
             left = "+" + ("-" * (math.floor(half_width) - 1))
             right = ("-" * (math.ceil(half_width) - 1)) + "+"
-            print(left + " CHECKPOINT " + right)
+            tqdm.write(left + " CHECKPOINT " + right)
           else:
-            print("--- CHECKPOINT ---")
+            tqdm.write("--- CHECKPOINT ---")
