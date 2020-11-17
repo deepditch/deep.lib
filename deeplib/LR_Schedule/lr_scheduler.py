@@ -149,11 +149,14 @@ class TorchLRScheduleCallback(TrainCallback):
 
     def state_dict(self): return self.schedule.state_dict()
 
-    def load_state_dict(self, state_dict): self.schedule.load_state_dict()
+    def load_state_dict(self, state_dict): self.schedule.load_state_dict(state_dict)
 
     def register_metric(self): return 'Learning Rate'
 
-    def on_epoch_begin(self, session, schedule, cb_dict): cb_dict['Learning Rate'] = self.schedule.get_last_lr()
+    def on_epoch_begin(self, session, schedule, cb_dict): 
+        last_lr = self.schedule.get_last_lr()
+        if isinstance(last_lr, list): last_lr = last_lr[0]
+        cb_dict['Learning Rate'] = last_lr
 
 class TorchOnBatchLRScheduleCallback(TorchLRScheduleCallback):    
     def on_batch_end(self, session, *args, **kwargs):
