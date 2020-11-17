@@ -8,7 +8,6 @@ import torch.optim as optim
 
 from deeplib.callbacks import TrainCallback
 
-
 class _LRScheduler(TrainCallback):
     '''An abstract class representing a learning rate schedule'''
 
@@ -121,7 +120,6 @@ class _LRScheduler(TrainCallback):
         for lr in [*zip(*lrs)]: # Matrix transposition
             ax_lr.plot(range(iterations), lr, 'b-')
 
-
 class _OnEpochLRScheduler(_LRScheduler):
     '''An abstract class that represents a learning rate that is updated after each epoch'''
 
@@ -131,7 +129,6 @@ class _OnEpochLRScheduler(_LRScheduler):
     def on_epoch_begin(self, session, *args, **kwargs):
         self.step(session)
 
-
 class _OnBatchLRScheduler(_LRScheduler):
     '''An abstract class that represents a learning rate that is updated after each batch'''
 
@@ -140,3 +137,25 @@ class _OnBatchLRScheduler(_LRScheduler):
 
     def on_batch_begin(self, session, *args, **kwargs):
         self.step(session)
+
+class TorchLRScheduleCallback(TrainCallback):
+    def __init__(self, schedule_fn, *args, **kwargs):
+        self.schedule_fn = schedule_fn
+        self.args = args
+        self.kwargs = kwargs
+
+    def on_train_begin(self, session, schedule, cb_dict): 
+        self.schedule = self.schedule_fn(session.optimizer, *self.args, **self.kwargs)
+
+    def state_dict(self): return self.schedule.state_dict()
+
+    def load_state_dict(self, state_dict): self.schedule.load_state_dict()
+
+
+class OnBatchTorchLRScheduleCallback(LRScheduleWrapper):    
+    def on_batch_end(self, session, *args, **kwargs):
+        self.schedule.step()
+
+class OnEpochTorchLRScheduleCallback(LRScheduleWrapper):    
+    def on_epoch_end(self, session, *args, **kwargs):
+        self.schedule.step()
