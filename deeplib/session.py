@@ -155,7 +155,6 @@ class Session():
         else:
             return Variable(util.to_gpu(tensor))
 
-
     def forward(self, input):
         if isinstance(input, dict):
             return self.model(**input)
@@ -165,7 +164,7 @@ class Session():
     def step(self, input, label):        
         outputs = self.forward(input)             
         loss = self.criterion(outputs, label)
-        return loss                          
+        return output, loss                         
 
     def run(self, schedule):
         self.running = True
@@ -184,7 +183,7 @@ class Session():
                 self.schedule.on_batch_begin(self, input, label)
 
                 input, label = self.to_device(input), self.to_device(label)
-                loss = self.step(input, label) 
+                output, loss = self.step(input, label) 
 
                 self.model.zero_grad()     
 
