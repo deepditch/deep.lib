@@ -151,7 +151,7 @@ class Session():
 
     def to_device(self, tensor):
         if isinstance(tensor, dict):
-            return {key: Variable(util.to_gpu(tensor)) for key, value in tensor.items()}  
+            return {key: Variable(util.to_gpu(value)) for key, value in tensor.items()}  
         else:
             return Variable(util.to_gpu(tensor))
 
@@ -165,11 +165,7 @@ class Session():
     def step(self, input, label):        
         outputs = self.forward(input)             
         loss = self.criterion(outputs, label)
-        return loss
-
-
-
-        return loss.data, input, outputs, label                                 
+        return loss                          
 
     def run(self, schedule):
         self.running = True
