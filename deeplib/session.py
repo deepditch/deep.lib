@@ -162,8 +162,8 @@ class Session():
             return self.model(input)
 
     def step(self, input, label):        
-        outputs = self.forward(input)             
-        loss = self.criterion(outputs, label)
+        output = self.forward(input)             
+        loss = self.criterion(output, label)
         return output, loss                         
 
     def run(self, schedule):
