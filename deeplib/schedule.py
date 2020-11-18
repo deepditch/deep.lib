@@ -122,9 +122,9 @@ class TrainingSchedule():
             cb.on_batch_end(session, self, self.cb_dict,
                             step_loss, input, output, label)
 
-    def on_before_optimizer(self, session, step_loss, input, output, label):
+    def on_before_optim(self, session, step_loss, input, output, label):
         for cb in self.callbacks:
-            cb.on_before_optimizer(session, self, self.cb_dict,
+            cb.on_before_optim(session, self, self.cb_dict,
                             step_loss, input, output, label)
 
     def on_epoch_end(self, session):

@@ -20,7 +20,7 @@ class TrainCallback:
     def on_train_begin(self, session, schedule, cb_dict): pass
     def on_epoch_begin(self, session, schedule, cb_dict): pass
     def on_batch_begin(self, session, schedule, cb_dict, input, label): pass
-    def on_before_optimizer(self, session, schedule, cb_dict, loss, input, output, label): pass
+    def on_before_optim(self, session, schedule, cb_dict, loss, input, output, label): pass
     def on_batch_end(self, session, schedule, cb_dict, loss, input, output, label): pass
     def on_epoch_end(self, session, schedule, cb_dict): pass
     def on_train_end(self, session, schedule, cb_dict): pass
@@ -195,7 +195,7 @@ class GradientClipper(StatelessTrainCallback):
   def __init__(self, max_grad_norm):
     self.max_grad_norm = max_grad_norm:
 
-  def on_before_optimizer(self, session, schedule, cb_dict, loss, *args, **kwargs):
+  def on_before_optim(self, session, schedule, cb_dict, loss, *args, **kwargs):
     if session.mixed_precision: raise Exception("Gradient clipping is not supported in mixed precision mode")
     torch.nn.utils.clip_grad_norm_(session.model.parameters(), self.max_grad_norm)
 

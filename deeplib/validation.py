@@ -198,7 +198,7 @@ class Validator(TrainCallback):
                     label = Variable(util.to_gpu(label))
                     count = label.shape[0]
 
-                output, _ = session.forward(input)
+                output = session.forward(session.to_device(input))
                 step_loss = session.criterion(output, label).data
                 valLoss.update(step_loss, count)
                 if self.accuracy_meter is not None:        

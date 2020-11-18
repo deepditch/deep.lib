@@ -149,33 +149,25 @@ class Session():
         else:
             for pg in self.optimizer.param_groups: pg['momentum'] = mom
 
+    def to_device(self, tensor):
+        if isinstance(tensor, dict):
+            return {key: Variable(util.to_gpu(tensor)) for key, value in tensor.items()}  
+        else:
+            return Variable(util.to_gpu(tensor))
+
+
     def forward(self, input):
         if isinstance(input, dict):
-            input = {key: Variable(util.to_gpu(value)) for key, value in input.items()}  
-            return self.model(**input), input
+            return self.model(**input)
         else:
-            input = Variable(util.to_gpu(input))
-            return self.model(Variable(util.to_gpu(input))), input
+            return self.model(input)
 
-    def step(self, input, label):                              
-        outputs, input = self.forward(input) 
-
-        if isinstance(label, dict):
-            label = {key: Variable(util.to_gpu(value)) for key, value in label.items()}  
-        else:
-            label = Variable(util.to_gpu(label))
-                
+    def step(self, input, label):        
+        outputs = self.forward(input)             
         loss = self.criterion(outputs, label)
+        return loss
 
-        self.model.zero_grad()     
 
-        if self.mixed_precision:
-            with amp.scale_loss(loss, self.optimizer) as scaled_loss: 
-                scaled_loss.backward()
-        else: 
-            loss.backward()  
-
-        self.optimizer.step()
 
         return loss.data, input, outputs, label                                 
 
@@ -192,9 +184,22 @@ class Session():
             
             for input, label, *_ in self.schedule.data():
                 if not self.running: break
+                
                 self.schedule.on_batch_begin(self, input, label)
-                step_loss, input, output, label = self.step(input, label)  
-                self.schedule.on_batch_end(self, step_loss, input, output, label)
+
+                input, label = self.to_device(input), self.to_device(label)
+                loss = self.step(input, label) 
+
+                self.model.zero_grad()     
+
+                if self.mixed_precision:
+                    with amp.scale_loss(loss, self.optimizer) as scaled_loss: 
+                        scaled_loss.backward()
+                else: loss.backward()  
+
+                self.schedule.on_before_optim(self, loss, input, output, label)
+                self.optimizer.step()
+                self.schedule.on_batch_end(self, loss.data, input, output, label)
             
             self.schedule.on_epoch_end(self)      
 
