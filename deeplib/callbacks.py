@@ -193,7 +193,7 @@ class Checkpoint(StatelessTrainCallback):
 
 class GradientClipper(StatelessTrainCallback):
   def __init__(self, max_grad_norm):
-    self.max_grad_norm = max_grad_norm:
+    self.max_grad_norm = max_grad_norm
 
   def on_before_optim(self, session, schedule, cb_dict, loss, *args, **kwargs):
     if session.mixed_precision: raise Exception("Gradient clipping is not supported in mixed precision mode")
