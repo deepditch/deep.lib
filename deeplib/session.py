@@ -167,7 +167,7 @@ class Session():
                 
         loss = self.criterion(outputs, label)
 
-        self.optimizer.zero_grad()     
+        self.model.zero_grad()     
 
         if self.mixed_precision:
             with amp.scale_loss(loss, self.optimizer) as scaled_loss: 

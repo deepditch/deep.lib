@@ -11,42 +11,46 @@ from deeplib.callbacks import StatelessTrainCallback
 
 
 class Logger(StatelessTrainCallback):
-  def __init__(self, metrics):
-    self.metrics = metrics  
-    self.widths = [len("Epoch")] + [max(7, len(key)) for key in self.metrics]
-    self.printed_header = False
+    def __init__(self, metrics):
+        self.metrics = metrics
+        self.widths = [len("Epoch")] + [max(7, len(key))
+                                        for key in self.metrics]
+        self.printed_header = False
 
-  def divider(self, char="-", sep="+"):
-    return sep + sep.join([char * (width+2) for width in self.widths]) + sep
+    def divider(self, char="-", sep="+"):
+        return sep + sep.join([char * (width+2) for width in self.widths]) + sep
 
-  def format_column(self, columns: list):
-    formats = ["{:>" + str(width) + (".4f" if not isinstance(col, (str, int, bool)) else "") + "}" for width, col in zip(self.widths, columns)]
-    return ("| " + " | ".join(formats)  + " |").format(*columns)
+    def format_column(self, columns: list):
+        formats = ["{:>" + str(width) + (".4f" if not isinstance(col, (str, int, bool))
+                                         else "") + "}" for width, col in zip(self.widths, columns)]
+        return ("| " + " | ".join(formats) + " |").format(*columns)
 
-  def on_train_begin(self, session, schedule, cb_dict, *args, **kwargs):
-    session.add_meta("Training Log", self.format_column(["Epoch"] + self.metrics) + "\n" + self.divider(sep="|"))
-    cb_dict["print-width"] = sum(self.widths) + (len(self.widths) * 3) + 1
-    
-  def on_train_end(self, *args, **kwargs):
-    tqdm.write(self.divider())
+    def on_train_begin(self, session, schedule, cb_dict, *args, **kwargs):
+        session.add_meta("Training Log", self.format_column(
+            ["Epoch"] + self.metrics) + "\n" + self.divider(sep="|"))
+        cb_dict["print-width"] = sum(self.widths) + (len(self.widths) * 3) + 1
 
-  def print_header(self):
-    tqdm.write(self.divider())
-    tqdm.write(self.format_column(["Epoch"] + self.metrics))
-    tqdm.write(self.divider("="))
+    def on_train_end(self, *args, **kwargs):
+        tqdm.write(self.divider())
 
-  def on_epoch_end(self, session, schedule, cb_dict, *args, **kwargs): 
-    if not self.printed_header:
-      self.print_header()
-      self.printed_header = True
+    def print_header(self):
+        tqdm.write(self.divider())
+        tqdm.write(self.format_column(["Epoch"] + self.metrics))
+        tqdm.write(self.divider("="))
 
-    columns = [schedule.epoch+1] + [cb_dict[key] if key in cb_dict and cb_dict[key] is not None else "None" for key in self.metrics]
-    metrics_string = self.format_column(columns)
+    def on_epoch_end(self, session, schedule, cb_dict, *args, **kwargs):
+        if not self.printed_header:
+            self.print_header()
+            self.printed_header = True
 
-    tqdm.write(metrics_string)
-    # print(self.divider())
+        columns = [schedule.epoch+1] + [cb_dict[key] if key in cb_dict and cb_dict[key]
+                                        is not None else "None" for key in self.metrics]
+        metrics_string = self.format_column(columns)
 
-    session.append_meta("Training Log", "\n" + metrics_string)
+        tqdm.write(metrics_string)
+        # print(self.divider())
+
+        session.append_meta("Training Log", "\n" + metrics_string)
 
 
 class TrainingSchedule():
@@ -62,11 +66,12 @@ class TrainingSchedule():
         for cb in self.callbacks:
             new_metric = cb.register_metric()
 
-            if new_metric is None: continue
+            if new_metric is None:
+                continue
 
             if not isinstance(new_metric, list):
                 new_metric = [new_metric]
-            
+
             self.metrics += new_metric
 
         if len(self.metrics) > 0:
@@ -86,39 +91,46 @@ class TrainingSchedule():
         self.callbacks.append(callback)
 
     def state_dict(self):
-        callbacks_state = [callback.state_dict() for callback in self.callbacks]
+        callbacks_state = [callback.state_dict()
+                           for callback in self.callbacks]
         return pickle.dumps({'callbacks': callbacks_state, 'cb_dict': self.cb_dict, 'epoch': self.epoch, 'iteration': self.iteration})
 
     def load_state_dict(self, state_dict):
         state_dict = pickle.loads(state_dict)
 
-        for cb, cb_state_dict in zip(self.callbacks, state_dict['callbacks']): 
+        for cb, cb_state_dict in zip(self.callbacks, state_dict['callbacks']):
             cb.load_state_dict(cb_state_dict)
 
         self.epoch = state_dict['epoch']
         self.iteration = state_dict['iteration']
         self.cb_dict = state_dict['cb_dict']
 
-    def on_train_begin(self, session):        
+    def on_train_begin(self, session):
         for cb in self.callbacks:
             cb.on_train_begin(session, self, self.cb_dict)
 
-    def on_epoch_begin(self, session):              
+    def on_epoch_begin(self, session):
         for cb in self.callbacks:
             cb.on_epoch_begin(session, self, self.cb_dict)
 
-    def on_batch_begin(self, session, input, label): 
+    def on_batch_begin(self, session, input, label):
         for cb in self.callbacks:
             cb.on_batch_begin(session, self, self.cb_dict, input, label)
 
-    def on_batch_end(self, session, step_loss, input, output, label): 
+    def on_batch_end(self, session, step_loss, input, output, label):
         for cb in self.callbacks:
-            cb.on_batch_end(session, self, self.cb_dict, step_loss, input, output, label)
-            
-    def on_epoch_end(self, session): 
+            cb.on_batch_end(session, self, self.cb_dict,
+                            step_loss, input, output, label)
+
+    def on_before_optimizer(self, session, step_loss, input, output, label):
+        for cb in self.callbacks:
+            cb.on_before_optimizer(session, self, self.cb_dict,
+                            step_loss, input, output, label)
+
+    def on_epoch_end(self, session):
         for cb in self.callbacks:
             cb.on_epoch_end(session, self, self.cb_dict)
 
-    def on_train_end(self, session): 
+    def on_train_end(self, session):
         for cb in self.callbacks:
             cb.on_train_end(session, self, self.cb_dict)
