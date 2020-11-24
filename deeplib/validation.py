@@ -31,7 +31,7 @@ class OneHotAccuracy(_AccuracyMeter):
         self.count = 0
         
     def accuracy(self): 
-        return (self.num_correct.double() / float(self.count)).item()
+        return (float(self.num_correct) / float(self.count))
 
     def metric(self): return self.accuracy()
 
@@ -42,7 +42,7 @@ class OneHotAccuracy(_AccuracyMeter):
         batch_correct = util.to_cpu(torch.sum(preds == label).data)
         self.num_correct += batch_correct
         self.count += label.shape[0]
-        return (batch_correct.double() / label.shape[0]).item() 
+        return (float(batch_correct) / label.shape[0]).item() 
 
 
 class NHotAccuracy(_AccuracyMeter):
@@ -191,11 +191,11 @@ class Validator(TrainCallback):
         with EvalModel(session.model) and torch.no_grad():
             for input, label, *_ in tqdm(self.dataloader, desc="Validating", leave=False):
 
+                label = session.to_device(label)
+
                 if isinstance(label, dict):
-                    label = {key: Variable(util.to_gpu(value)) for key, value in label.items()}  
                     count = 1
                 else:
-                    label = Variable(util.to_gpu(label))
                     count = label.shape[0]
 
                 output = session.forward(session.to_device(input))
