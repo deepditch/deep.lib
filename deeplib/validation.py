@@ -31,7 +31,7 @@ class OneHotAccuracy(_AccuracyMeter):
         self.count = 0
         
     def accuracy(self): 
-        return (float(self.num_correct) / float(self.count))
+        return float(self.num_correct) / float(self.count)
 
     def metric(self): return self.accuracy()
 
@@ -42,7 +42,7 @@ class OneHotAccuracy(_AccuracyMeter):
         batch_correct = util.to_cpu(torch.sum(preds == label).data)
         self.num_correct += batch_correct
         self.count += label.shape[0]
-        return (float(batch_correct) / label.shape[0]).item() 
+        return float(batch_correct) / label.shape[0]
 
 
 class NHotAccuracy(_AccuracyMeter):
