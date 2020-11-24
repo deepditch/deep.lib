@@ -151,10 +151,11 @@ class Session():
 
     def to_device(self, tensor):
         if isinstance(tensor, dict):
-            return {key: self.to_device(tensor) for key, value in tensor.items()}  
+            return {key: self.to_device(value) for key, value in tensor.items()}  
         elif isinstance(tensor, torch.Tensor):
             return Variable(util.to_gpu(tensor))
-        else: return tensor
+        else: 
+            return tensor
 
     def forward(self, input):
         if isinstance(input, dict):
