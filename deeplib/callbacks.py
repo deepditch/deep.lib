@@ -50,6 +50,7 @@ class SaveBest(TrainCallback):
     def __init__(self, model_path: str, metric_name: str, higher_is_better: bool):
         self.model_path = model_path
         self.metric_name = metric_name
+        os.makedirs(self.metric_name, exist_ok=True)
         self.higher_is_better = higher_is_better
         self.best = float("-inf") if higher_is_better else float("inf")
 
