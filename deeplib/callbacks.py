@@ -50,7 +50,6 @@ class SaveBest(TrainCallback):
     def __init__(self, model_path: str, metric_name: str, higher_is_better: bool):
         self.model_path = model_path
         self.metric_name = metric_name
-        os.makedirs(os.path.dirname(self.model_path), exist_ok=True)
         self.higher_is_better = higher_is_better
         self.best = float("-inf") if higher_is_better else float("inf")
 
@@ -59,8 +58,8 @@ class SaveBest(TrainCallback):
 
       if (self.best < cb_dict[self.metric_name] and self.higher_is_better) or (self.best > cb_dict[self.metric_name] and not self.higher_is_better):
         self.best = cb_dict[self.metric_name]
-        session.save(self.model_path)
         session.add_meta(f"Best {self.metric_name}", f"{self.best} at epoch {schedule.epoch}")
+        session.save(self.model_path)
 
 MEGA = 10 ** 6
 MEGA_STR = ' ' * MEGA

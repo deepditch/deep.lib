@@ -36,6 +36,8 @@ class Session():
         self.meta = {}
 
     def _save_meta(self, name):
+        os.makedirs(os.path.dirname(name), exist_ok=True)
+
         file = os.path.splitext(name)[0] + ".meta.md"
 
         with open(file, mode="w") as f:
@@ -44,6 +46,8 @@ class Session():
                 f.write(f"{val} \n\n")
 
     def _save(self, name):
+        os.makedirs(os.path.dirname(name), exist_ok=True)
+        
         state = {
             'model': self.model.state_dict()
         }
