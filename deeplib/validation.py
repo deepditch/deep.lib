@@ -31,6 +31,8 @@ class OneHotAccuracy(_AccuracyMeter):
         self.count = 0
         
     def accuracy(self): 
+        if self.count == 0: return 0
+        
         return float(self.num_correct) / float(self.count)
 
     def metric(self): return self.accuracy()
