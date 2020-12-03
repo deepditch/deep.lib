@@ -156,7 +156,7 @@ class TorchLRScheduleCallback(TrainCallback):
     def on_epoch_begin(self, session, schedule, cb_dict): 
         last_lr = self.schedule.get_last_lr()
         if isinstance(last_lr, list): last_lr = last_lr[0]
-        cb_dict['Learning Rate'] = last_lr
+        cb_dict['Learning Rate'] = "{:.2E}".format(last_lr)
 
 class TorchOnBatchLRScheduleCallback(TorchLRScheduleCallback):    
     def on_batch_end(self, session, *args, **kwargs):
