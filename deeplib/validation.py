@@ -20,6 +20,7 @@ class _AccuracyMeter:
     def update(self, output, label): raise NotImplementedError
     def reset(self, output, label): raise NotImplementedError
     def metric(self): raise NotImplementedError
+    def report(self, cb_dict): pass
 
 
 class OneHotAccuracy(_AccuracyMeter):
@@ -37,8 +38,6 @@ class OneHotAccuracy(_AccuracyMeter):
 
     def metric(self): return self.accuracy()
 
-    def report(self): print(f"Validation Accuracy: {round(self.metric, 4)}")
-
     def update(self, output, label):
         _, preds = torch.max(output, 1)
         batch_correct = util.to_cpu(torch.sum(preds == label).data)
@@ -48,7 +47,7 @@ class OneHotAccuracy(_AccuracyMeter):
 
 
 class NHotAccuracy(_AccuracyMeter):
-    def __init__(self, num_classes, threshold=.5):        
+    def __init__(self, num_classes, threshold=.5, prefix=""):        
         self.num_classes = num_classes
         self.num_true_positives = 0
         self.num_true_negatives = 0
@@ -68,7 +67,7 @@ class NHotAccuracy(_AccuracyMeter):
 
         self.confusion = [{"true_pos":0, "true_neg":0, "false_pos":0, "false_neg":0, "support": 0} for i in range(self.num_classes)]
 
-    def report(self):
+    def report(self, cb_dict):
       acc = self.accuracy()
       prec = self.precision()
       rec = self.recall()
@@ -207,7 +206,9 @@ class Validator(TrainCallback):
                     self.accuracy_meter.update(output, label)
         
         cb_dict["Loss/Validation"] = valLoss.raw_avg
-        if self.accuracy_meter is not None: cb_dict[self.metric_name] = self.accuracy_meter.metric()         
+        if self.accuracy_meter is not None: 
+            cb_dict[self.metric_name] = self.accuracy_meter.metric()         
+            self.accuracy_meter.report(cb_dict)
 
     def on_epoch_end(self, session, schedule, cb_dict, *args, **kwargs): 
         self.run(session, cb_dict)
