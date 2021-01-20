@@ -121,7 +121,7 @@ def select_pos_neg_dists(embeddings, labels, cutoff, nonzero_loss_cutoff):
     distance = pairwise_distances(embeddings)
     distance = distance.clamp(min=cutoff)
 
-    mask_anc hor_positive = _get_anchor_positive_triplet_mask(labels)
+    mask_anchor_positive = _get_anchor_positive_triplet_mask(labels)
     mask_anchor_negative = _get_anchor_negative_triplet_mask(labels)
 
     log_weights = ((2.0 - float(d)) * distance.log() - (float(d-3)/2)*torch.log(torch.clamp(1.0 - 0.25*(distance*distance), min=1e-8)))
