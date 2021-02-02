@@ -7,10 +7,12 @@ import torch
 from torch.utils.data import DataLoader
 
 import deeplib.util as util
-from deeplib.callbacks import StatelessTrainCallback
+import deeplib.callbacks
+import deeplib.session
+import deeplib.schedule
 
 
-class Logger(StatelessTrainCallback):
+class Logger(deeplib.callbacks.StatelessTrainCallback):
     """A training callback used to log training statistics to the console. 
     Reads statistics from a TrainingSchedule's callback dictionary (`TrainingSchedule.cb_dict`).
     """

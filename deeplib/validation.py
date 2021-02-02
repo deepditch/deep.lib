@@ -11,12 +11,11 @@ from torch.autograd import Variable
 
 from sklearn.metrics import label_ranking_loss, coverage_error, label_ranking_average_precision_score
 
-from deeplib.session import *
-from deeplib.callbacks import TrainCallback
+from deeplib.callbacks import StatelessTrainCallback
 import deeplib.util as util
 
 class _AccuracyMeter:
-    def update(self, output, *args): raise NotImplementedError
+    def update(self, output: torch.tensor, *args): raise NotImplementedError
     def reset(self): raise NotImplementedError
     def register_metrics(self): raise NotImplementedError
     def metric(self): raise NotImplementedError
@@ -25,7 +24,7 @@ class _AccuracyMeter:
 class OneHotAccuracy(_AccuracyMeter):
     def __init__(self, metric_name="Accuracy"):
         self.reset()
-        self.metric_name = "Accuracy"
+        self.metric_name = metric_name
 
     def register_metrics(self): return ["Accuracy"]
 
@@ -67,14 +66,14 @@ class NHotAccuracy(_AccuracyMeter):
                                         f"{prefix}/OneError", 
                                         f"{prefix}/Coverage"]
 
-    def metric(self): return self.accuracy()[1], 
-                             self.precision()[1], 
-                             self.recall()[1], 
-                             self.FMeasure()[1],
-                             self.RankingLoss(),
-                             self.AveragePrecision(),
-                             self.OneError(),
-                             self.Coverage()
+    def metric(self): return self.accuracy()[1], \
+        self.precision()[1], \
+        self.recall()[1], \
+        self.FMeasure()[1],\
+        self.RankingLoss(), \
+        self.AveragePrecision(), \
+        self.OneError(), \
+        self.Coverage()
 
     def reset(self):
         self.n = 0    
@@ -215,7 +214,7 @@ class Validator(StatelessTrainCallback):
         if self.accuracy_meter is not None: 
             metrics = self.accuracy_meter.metric()
 
-            for metric_name, metric in zip(self.accuracy_metrics, metrics)
+            for metric_name, metric in zip(self.accuracy_metrics, metrics):
                 cb_dict[self.metric_name] = metric     
 
     def on_epoch_end(self, session, schedule, cb_dict, *args, **kwargs): 

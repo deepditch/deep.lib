@@ -3,7 +3,6 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.autograd import Variable
 
-import deeplib.schedule
 import deeplib.util as util
 from deeplib.util import *
 import deeplib.callbacks
@@ -17,7 +16,7 @@ class Session():
     """A training session is used to train a pytorch model with support for checkpointing and 
     recording training statistics. Can be overriden for custom training behavior.
     """
-    def __init__(self, model, criterion, optimizer):
+    def __init__(self, model: torch.nn.Module, criterion: callable, optimizer: torch.optim.Optimizer):
         """
         Args:
             model (torch.nn.Module): The PyTorch model to train. 
@@ -202,7 +201,7 @@ class Session():
 
         self.schedule.on_train_end(self)   
 
-    def train(self, schedule: deeplib.schedule.TrainingSchedule):   
+    def train(self, schedule: 'deeplib.schedule.TrainingSchedule'):   
         """Train the session's model using a training schedule.
 
         Args:

@@ -13,7 +13,7 @@ import torch.nn.utils
 from torch.autograd import Variable
 from torch.utils.tensorboard import SummaryWriter
 
-import deeplib.util
+import deeplib
 
 class TrainCallback:
 	"""An abstract class representing a training callback. 
@@ -21,13 +21,13 @@ class TrainCallback:
 	Each callback has access to a shared callback dictionary (`cb_dict`). Callbacks can coordinate 
 	by reading and writing to the callback dictionary. The internal state of the callback is saved 
 	when `deeplib.session.Session.checkpoint` is called."""
-	def on_train_begin(self, session, schedule, cb_dict): pass
-	def on_epoch_begin(self, session, schedule, cb_dict): pass
-	def on_batch_begin(self, session, schedule, cb_dict, *args, **kwargs): pass
-	def on_before_optim(self, session, schedule, cb_dict, loss, output, *args, **kwargs): pass
-	def on_batch_end(self, session, schedule, cb_dict, loss, output, *args, **kwargs): pass
-	def on_epoch_end(self, session, schedule, cb_dict): pass
-	def on_train_end(self, session, schedule, cb_dict): pass
+	def on_train_begin(self, session: 'deeplib.session.Session', schedule: 'deeplib.schedule.TrainingSchedule', cb_dict: dict): pass
+	def on_epoch_begin(self, session: 'deeplib.session.Session', schedule: 'deeplib.schedule.TrainingSchedule', cb_dict: dict): pass
+	def on_batch_begin(self, session: 'deeplib.session.Session', schedule: 'deeplib.schedule.TrainingSchedule', cb_dict: dict, *args, **kwargs): pass
+	def on_before_optim(self, session: 'deeplib.session.Session', schedule: 'deeplib.schedule.TrainingSchedule', cb_dict: dict, loss, output, *args, **kwargs): pass
+	def on_batch_end(self, session: 'deeplib.session.Session', schedule: 'deeplib.schedule.TrainingSchedule', cb_dict: dict, loss, output, *args, **kwargs): pass
+	def on_epoch_end(self, session: 'deeplib.session.Session', schedule: 'deeplib.schedule.TrainingSchedule', cb_dict: dict): pass
+	def on_train_end(self, session: 'deeplib.session.Session', schedule: 'deeplib.schedule.TrainingSchedule', cb_dict: dict): pass
 	def state_dict(self): return pickle.dumps(self.__dict__)
 	def load_state_dict(self, state_dict): self.__dict__.update(pickle.loads(state_dict)) 
 	def register_metric(self): pass
@@ -90,51 +90,28 @@ class SaveBest(TrainCallback):
 			session.add_meta(f"Best {self.metric_name}", f"{self.best} at epoch {schedule.epoch}")
 			session.save(self.model_path)
 
-MEGA = 10 ** 6
-MEGA_STR = ' ' * MEGA
-
-class MemoryProfiler(StatelessTrainCallback):  
-    def print_profile(self, prefix):
-        process = psutil.Process(os.getpid())
-        total, available, percent, used, free = psutil.virtual_memory()
-        total, available, used, free = total / MEGA, available / MEGA, used / MEGA, free / MEGA
-        proc = process.memory_info()[1] / MEGA
-        tqdm.write('process = %.2f total = %.2f available = %.2f used = %.2f free = %.2f percent = %.2f' % (proc, total, available, used, free, percent))
-
-    def on_train_begin(self, *args, **kwargs): self.print_profile("on_train_begin")
-    def on_epoch_end(self, *args, **kwargs): self.print_profile("on_epoch_end")
-    def on_train_end(self, *args, **kwargs): self.print_profile("on_train_end")
-
-class GPUMemoryProfiler(StatelessTrainCallback):
-	def print_profile(self):
-		stats = torch.cuda.memory_stats()
-		tqdm.write(f"{stats['allocated_bytes.all.current']:<30,} {stats['allocated_bytes.all.peak']:<30,} {torch.cuda.get_device_properties('cuda').total_memory:<30,}")
-
-	def on_epoch_begin(self, *args, **kwargs):
-		tqdm.write(f"{'current': <30} {'peak': <30} {'total': <30}")
-
-	def on_batch_begin(self, *args, **kwargs): 
-		self.print_profile()
-
-	def on_batch_end(self, *args, **kwargs): 
-		self.print_profile()  
-
 class TrainingAccuracyLogger(TrainCallback):
-	def __init__(self, accuracy_meter):
-		self.metric_name = metric_name
+	"""Log's training accuracy to the callback dictionary after each epoch."""
+	def __init__(self, accuracy_meter: 'deeplib.validation._AccuracyMeter'):
+		"""
+		Args:
+			accuracy_meter (deeplib.validation._AccuracyMeter): An accuracy meter is used to
+		"""
 		self.accuracy_meter = accuracy_meter
+		self.metrics = self.accuracy_meter.register_metrics()
 
 	def register_metric(self):
-		return self.accuracy_meter.register_metric()
+		return self.metrics
 
 	def on_epoch_begin(self, *args, **kwargs):
 		self.accuracy_meter.reset()
 
-	def on_batch_end(self, session, schedule, cb_dict, loss, output, input, label):
-		self.accuracy_meter.update(output, label)
+	def on_batch_end(self, session, schedule, cb_dict, loss, output, *item):
+		self.accuracy_meter.update(output, *item)
 
 	def on_epoch_end(self, session, schedule, cb_dict): 
-		cb_dict[self.metric_name] = self.accuracy_meter.metric()
+		for metric_name, metric in zip(self.metrics, self.accuracy_meter.metric()):
+			cb_dict[self.metric_name] = metric  
 
 class TrainingLossLogger(TrainCallback):
 	def __init__(self, metric_name = "Loss/Train"):
@@ -227,5 +204,35 @@ class GradientClipper(StatelessTrainCallback):
 	def on_before_optim(self, session, *args, **kwargs):
 		if session.mixed_precision: raise Exception("Gradient clipping is not supported in mixed precision mode")
 		torch.nn.utils.clip_grad_norm_(session.model.parameters(), self.max_grad_norm)
+
+
+MEGA = 10 ** 6
+MEGA_STR = ' ' * MEGA
+
+class MemoryProfiler(StatelessTrainCallback):  
+    def print_profile(self, prefix):
+        process = psutil.Process(os.getpid())
+        total, available, percent, used, free = psutil.virtual_memory()
+        total, available, used, free = total / MEGA, available / MEGA, used / MEGA, free / MEGA
+        proc = process.memory_info()[1] / MEGA
+        tqdm.write('process = %.2f total = %.2f available = %.2f used = %.2f free = %.2f percent = %.2f' % (proc, total, available, used, free, percent))
+
+    def on_train_begin(self, *args, **kwargs): self.print_profile("on_train_begin")
+    def on_epoch_end(self, *args, **kwargs): self.print_profile("on_epoch_end")
+    def on_train_end(self, *args, **kwargs): self.print_profile("on_train_end")
+
+class GPUMemoryProfiler(StatelessTrainCallback):
+	def print_profile(self):
+		stats = torch.cuda.memory_stats()
+		tqdm.write(f"{stats['allocated_bytes.all.current']:<30,} {stats['allocated_bytes.all.peak']:<30,} {torch.cuda.get_device_properties('cuda').total_memory:<30,}")
+
+	def on_epoch_begin(self, *args, **kwargs):
+		tqdm.write(f"{'current': <30} {'peak': <30} {'total': <30}")
+
+	def on_batch_begin(self, *args, **kwargs): 
+		self.print_profile()
+
+	def on_batch_end(self, *args, **kwargs): 
+		self.print_profile()  
 
 
