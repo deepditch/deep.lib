@@ -98,10 +98,10 @@ class TrainingAccuracyLogger(TrainCallback):
 			accuracy_meter (deeplib.validation._AccuracyMeter): An accuracy meter is used to
 		"""
 		self.accuracy_meter = accuracy_meter
-		self.metrics = self.accuracy_meter.register_metrics()
+		self.metric_names = self.accuracy_meter.register_metrics()
 
 	def register_metric(self):
-		return self.metrics
+		return self.metric_names
 
 	def on_epoch_begin(self, *args, **kwargs):
 		self.accuracy_meter.reset()
@@ -110,8 +110,13 @@ class TrainingAccuracyLogger(TrainCallback):
 		self.accuracy_meter.update(output, *item)
 
 	def on_epoch_end(self, session, schedule, cb_dict): 
-		for metric_name, metric in zip(self.metrics, self.accuracy_meter.metric()):
-			cb_dict[self.metric_name] = metric  
+		metrics = self.accuracy_meter.metric()
+
+		if isinstance(metrics, list):
+			for metric_name, metric in zip(self.metric_names, metrics):
+				cb_dict[metric_name] = metric     
+		else:
+			cb_dict[self.metric_names] = metrics
 
 class TrainingLossLogger(TrainCallback):
 	def __init__(self, metric_name = "Loss/Train"):

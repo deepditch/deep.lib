@@ -81,8 +81,8 @@ sess = deeplib.session.Session(net, criterion, optimizer)
 
 callbacks = [
     deeplib.callbacks.TrainingLossLogger(metric_name="Loss/Train"),
-    deeplib.callbacks.TrainingAccuracyLogger(deeplib.validation.OneHotAccuracy()),
-    deeplib.validation.Validator(testloader, deeplib.validation.OneHotAccuracy()),
+    deeplib.callbacks.TrainingAccuracyLogger(deeplib.validation.OneHotAccuracy(metric_name="Accuracy/Train")),
+    deeplib.validation.Validator(testloader, deeplib.validation.OneHotAccuracy(metric_name="Accuracy/Validation")),
     deeplib.callbacks.Checkpoint("E:/checkpoint.ckpt.tar"),
     deeplib.callbacks.SaveBest("E:/best.ckpt.tar", "Loss/Train", higher_is_better=False)
 ]

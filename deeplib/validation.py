@@ -13,6 +13,7 @@ from sklearn.metrics import label_ranking_loss, coverage_error, label_ranking_av
 
 from deeplib.callbacks import StatelessTrainCallback
 import deeplib.util as util
+from deeplib.util import LossMeter, EvalModel
 
 class _AccuracyMeter:
     def update(self, output: torch.tensor, *args): raise NotImplementedError
@@ -26,7 +27,7 @@ class OneHotAccuracy(_AccuracyMeter):
         self.reset()
         self.metric_name = metric_name
 
-    def register_metrics(self): return ["Accuracy"]
+    def register_metrics(self): return self.metric_name
 
     def reset(self):
         self.num_correct = 0
@@ -198,7 +199,7 @@ class Validator(StatelessTrainCallback):
         self.accuracy_metrics = accuracy_meter.register_metrics() if self.accuracy_meter else []
 
     def register_metric(self):
-        return [self.metric_name] + self.accuracy_metrics
+        return [self.metric_name] + self.accuracy_metrics if isinstance(self.accuracy_metrics, list) else [self.metric_name, self.accuracy_metrics] 
 
     def run(self, session, cb_dict):
         if self.accuracy_meter is not None: self.accuracy_meter.reset()
@@ -211,11 +212,15 @@ class Validator(StatelessTrainCallback):
                 if self.accuracy_meter is not None: self.accuracy_meter.update(output, *item)
         
         cb_dict[self.metric_name] = val_loss.raw_avg
+
         if self.accuracy_meter is not None: 
             metrics = self.accuracy_meter.metric()
 
-            for metric_name, metric in zip(self.accuracy_metrics, metrics):
-                cb_dict[self.metric_name] = metric     
+            if isinstance(metrics, list):
+                for metric_name, metric in zip(self.accuracy_metrics, metrics):
+                    cb_dict[metric_name] = metric     
+            else:
+                cb_dict[self.accuracy_metrics] = metrics
 
     def on_epoch_end(self, session, schedule, cb_dict, *args, **kwargs): 
         self.run(session, cb_dict)
