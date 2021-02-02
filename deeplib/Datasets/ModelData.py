@@ -71,8 +71,8 @@ def make_partition_indices(n, partition_dict):
 
 class LabelType(Enum):
     CATEGORY = 1
-    COORDINATE = 2 # List of concatinated coordinates: [x,y] * n
-    BOUNDING_BOX = 3 # List of concatinated bounding boxes: [center_x, center_y, width, height] * n
+    COORDINATE = 2 # List of concatenated coordinates: [x,y] * n
+    BOUNDING_BOX = 3 # List of concatenated bounding boxes: [center_x, center_y, width, height] * n
     NA = 4
 
 

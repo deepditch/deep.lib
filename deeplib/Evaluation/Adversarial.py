@@ -23,7 +23,7 @@ class AdvertorchCallback(StatelessTrainCallback):
     total = 0
 
     for data, label in tqdm(self.dataloader, leave=False, desc=self.metric_name):
-        data, label = data.to("cuda"), label.to("cuda")
+        data, label = session.to_device(data), session.to_device(label)
         perturbed_data = self.adversary.perturb(data, label)
         total += len(label)
         

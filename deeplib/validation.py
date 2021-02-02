@@ -15,17 +15,19 @@ from deeplib.session import *
 from deeplib.callbacks import TrainCallback
 import deeplib.util as util
 
-
 class _AccuracyMeter:
-    def update(self, output, label): raise NotImplementedError
-    def reset(self, output, label): raise NotImplementedError
+    def update(self, output, *args): raise NotImplementedError
+    def reset(self): raise NotImplementedError
+    def register_metrics(self): raise NotImplementedError
     def metric(self): raise NotImplementedError
     def report(self, cb_dict): pass
 
-
 class OneHotAccuracy(_AccuracyMeter):
-    def __init__(self):
+    def __init__(self, metric_name="Accuracy"):
         self.reset()
+        self.metric_name = "Accuracy"
+
+    def register_metrics(self): return ["Accuracy"]
 
     def reset(self):
         self.num_correct = 0
@@ -38,13 +40,12 @@ class OneHotAccuracy(_AccuracyMeter):
 
     def metric(self): return self.accuracy()
 
-    def update(self, output, label):
+    def update(self, output, input, label):
         _, preds = torch.max(output, 1)
         batch_correct = util.to_cpu(torch.sum(preds == label).data)
         self.num_correct += batch_correct
         self.count += label.shape[0]
         return float(batch_correct) / label.shape[0]
-
 
 class NHotAccuracy(_AccuracyMeter):
     def __init__(self, num_classes, threshold=.5, prefix=""):        
@@ -54,9 +55,26 @@ class NHotAccuracy(_AccuracyMeter):
         self.num_false_positives = 0
         self.num_false_negatives = 0
         self.eps = threshold
+        self.prefix = prefix
         self.reset()
 
-    def metric(self): return self.FMeasure()[1] # Macro average FMeasure
+    def register_metrics(self): return [f"{prefix}/Accuracy", 
+                                        f"{prefix}/Precision", 
+                                        f"{prefix}/Recall", 
+                                        f"{prefix}/F1",
+                                        f"{prefix}/RankingLoss", 
+                                        f"{prefix}/AveragePrecision", 
+                                        f"{prefix}/OneError", 
+                                        f"{prefix}/Coverage"]
+
+    def metric(self): return self.accuracy()[1], 
+                             self.precision()[1], 
+                             self.recall()[1], 
+                             self.FMeasure()[1],
+                             self.RankingLoss(),
+                             self.AveragePrecision(),
+                             self.OneError(),
+                             self.Coverage()
 
     def reset(self):
         self.n = 0    
@@ -159,7 +177,7 @@ class NHotAccuracy(_AccuracyMeter):
             if lowest_rank_prediction not in label: 
                 self.one_error += 1
 
-    def update(self, outputs, labels):
+    def update(self, outputs, inputs, labels):
         outputs = outputs.view(-1, self.num_classes)
         labels = labels.view(-1, self.num_classes)
 
@@ -173,42 +191,32 @@ class NHotAccuracy(_AccuracyMeter):
 
         self.update_from_numpy(preds, labels)      
 
-
-class Validator(TrainCallback):
-    def __init__(self, dataloader, accuracy_meter=None, metric_name="Accuracy/Validation"):
+class Validator(StatelessTrainCallback):
+    def __init__(self, dataloader, accuracy_meter=None, metric_name="Loss/Validation"):
         self.dataloader = dataloader
         self.accuracy_meter = accuracy_meter
         self.metric_name = metric_name
+        self.accuracy_metrics = accuracy_meter.register_metrics() if self.accuracy_meter else []
 
     def register_metric(self):
-        return [self.metric_name, "Loss/Validation"] if self.accuracy_meter is not None else "Loss/Validation"
-
-    def state_dict(self): return ""
-    def load_state_dict(self, dict): pass
+        return [self.metric_name] + self.accuracy_metrics
 
     def run(self, session, cb_dict):
         if self.accuracy_meter is not None: self.accuracy_meter.reset()
-        valLoss = LossMeter()
+        val_loss = LossMeter()
         with EvalModel(session.model) and torch.no_grad():
-            for input, label, *_ in tqdm(self.dataloader, desc="Validating", leave=False):
-
-                label = session.to_device(label)
-
-                if isinstance(label, dict):
-                    count = 1
-                else:
-                    count = label.shape[0]
-
-                output = session.forward(session.to_device(input))
-                step_loss = session.criterion(output, label).data
-                valLoss.update(step_loss, count)
-                if self.accuracy_meter is not None:        
-                    self.accuracy_meter.update(output, label)
+            for item in tqdm(self.dataloader, desc="Validating", leave=False):
+                item = session.to_device(item)
+                output, loss = session.step(*item)
+                val_loss.update(loss.data)
+                if self.accuracy_meter is not None: self.accuracy_meter.update(output, *item)
         
-        cb_dict["Loss/Validation"] = valLoss.raw_avg
+        cb_dict[self.metric_name] = val_loss.raw_avg
         if self.accuracy_meter is not None: 
-            cb_dict[self.metric_name] = self.accuracy_meter.metric()         
-            self.accuracy_meter.report(cb_dict)
+            metrics = self.accuracy_meter.metric()
+
+            for metric_name, metric in zip(self.accuracy_metrics, metrics)
+                cb_dict[self.metric_name] = metric     
 
     def on_epoch_end(self, session, schedule, cb_dict, *args, **kwargs): 
         self.run(session, cb_dict)

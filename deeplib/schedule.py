@@ -11,7 +11,14 @@ from deeplib.callbacks import StatelessTrainCallback
 
 
 class Logger(StatelessTrainCallback):
-    def __init__(self, metrics):
+    """A training callback used to log training statistics to the console. 
+    Reads statistics from a TrainingSchedule's callback dictionary (`TrainingSchedule.cb_dict`).
+    """
+    def __init__(self, metrics: list):
+        """
+        Args:
+            metrics (list[str]): List of metrics to log. Each metric is a key used to read from the TrainingSchedule's callback dictionary.
+        """
         self.metrics = metrics
         self.widths = [len("Epoch")] + [max(7, len(key))
                                         for key in self.metrics]
@@ -43,18 +50,29 @@ class Logger(StatelessTrainCallback):
             self.print_header()
             self.printed_header = True
 
-        columns = [schedule.epoch+1] + [cb_dict[key] if key in cb_dict and cb_dict[key]
-                                        is not None else "None" for key in self.metrics]
+        columns = [schedule.epoch+1] + [cb_dict[key] if key in cb_dict and cb_dict[key] is not None else "None" for key in self.metrics]
         metrics_string = self.format_column(columns)
 
         tqdm.write(metrics_string)
-        # print(self.divider())
 
         session.append_meta("Training Log", "\n" + metrics_string)
 
 
 class TrainingSchedule():
-    def __init__(self, dataloader: DataLoader, num_epochs: int, callbacks):
+    """This class is used as a container for a torch.utils.data.DataLoader and a list of training callbacks. 
+    The training schedule is passed to the `session.train` method.
+    Each training callback has access to a shared callback dictionary (`TrainingSchedule.cb_dict`). 
+    Callbacks can coordinate by reading and modifying this dictionary. For example, one callback might write a 
+    training statistic to the callback dictionary and a second callback might read that statistic and log to the console.
+    """
+    def __init__(self, dataloader: torch.utils.data.DataLoader, num_epochs: int, callbacks: list):
+        """Initialize a training schedule
+
+        Args:
+            dataloader (torch.utils.data.DataLoader): A dataloader used to iterate the training set
+            num_epochs (int): Number of epochs to train for
+            callbacks (list[deeplib.callbacks.TrainCallback]): List of training callbacks
+        """
         self.dataloader = dataloader
         self.num_epochs = num_epochs
         self.epoch = 0
@@ -91,8 +109,7 @@ class TrainingSchedule():
         self.callbacks.append(callback)
 
     def state_dict(self):
-        callbacks_state = [callback.state_dict()
-                           for callback in self.callbacks]
+        callbacks_state = [callback.state_dict() for callback in self.callbacks]
         return pickle.dumps({'callbacks': callbacks_state, 'cb_dict': self.cb_dict, 'epoch': self.epoch, 'iteration': self.iteration})
 
     def load_state_dict(self, state_dict):
@@ -113,19 +130,18 @@ class TrainingSchedule():
         for cb in self.callbacks:
             cb.on_epoch_begin(session, self, self.cb_dict)
 
-    def on_batch_begin(self, session, input, label):
+    def on_batch_begin(self, session, *args, **kwargs):
         for cb in self.callbacks:
-            cb.on_batch_begin(session, self, self.cb_dict, input, label)
+            cb.on_batch_begin(session, self, *args, **kwargs)
 
-    def on_batch_end(self, session, step_loss, input, output, label):
+    def on_batch_end(self, session, step_loss, output, *args, **kwargs):
         for cb in self.callbacks:
             cb.on_batch_end(session, self, self.cb_dict,
-                            step_loss, input, output, label)
+                            step_loss, output, *args, **kwargs)
 
-    def on_before_optim(self, session, step_loss, input, output, label):
+    def on_before_optim(self, session, step_loss, output, *args, **kwargs):
         for cb in self.callbacks:
-            cb.on_before_optim(session, self, self.cb_dict,
-                            step_loss, input, output, label)
+            cb.on_before_optim(session, self, self.cb_dict, step_loss, output, *args, **kwargs)
 
     def on_epoch_end(self, session):
         for cb in self.callbacks:

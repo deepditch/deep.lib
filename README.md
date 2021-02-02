@@ -1,40 +1,93 @@
 # deep.lib
-Deep learning library built on top of PyTorch
+deep.lib is wrapper for PyTorch that handles the boilerplate of training models. 
+This allows you to focus on the defintion of your models, datasets, and loss functions without worring 
+about the training loop, logging, checkpointing, etc. 
+This philosophy is similar to other API's like keras and pytorch-lightning.
 
-If you use Anaconda to manage python environments (recommended), do the following to create an environment with the required dependencies.
+Beware, this repo is a work in progress.
+
+
+## Quick Example:
+
+Let's train a Cifar-10 classifier using deeplib.
+
+### Step 1. Define a model
+
+Define your model using the standard PyTorch libraries.
+
+```python
+import torch.nn as nn
+import torch.nn.functional as F
+
+class Net(nn.Module):
+    def __init__(self):
+        super(Net, self).__init__()
+        self.conv1 = nn.Conv2d(3, 6, 5)
+        self.pool = nn.MaxPool2d(2, 2)
+        self.conv2 = nn.Conv2d(6, 16, 5)
+        self.fc1 = nn.Linear(16 * 5 * 5, 120)
+        self.fc2 = nn.Linear(120, 84)
+        self.fc3 = nn.Linear(84, 10)
+
+    def forward(self, x):
+        x = self.pool(F.relu(self.conv1(x)))
+        x = self.pool(F.relu(self.conv2(x)))
+        x = x.view(-1, 16 * 5 * 5)
+        x = F.relu(self.fc1(x))
+        x = F.relu(self.fc2(x))
+        x = self.fc3(x)
+        return x
+
+net = Net()
 ```
-conda env create -f environment.yml
-activate deeplib
-conda install protobuf requests opencv pytorch torchvision cuda90 -c pytorch
-pip install onnx-coreml
+
+## Step 2. Define a loss function and optimizer
+
+```python
+import torch.optim as optim
+
+criterion = nn.CrossEntropyLoss()
+optimizer = optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
 ```
 
-If coremltools does not install correctly try the following:
-```
-pip install git+https://github.com/apple/coremltools
-```
+## Step 3. Define a dataset and dataloader
 
-Additional Dependencies For GPU Support
-- Cuda 9.0
-- cudnn
+```python
+import torch
+import torchvision
+import torchvision.transforms as transforms
 
+transform = transforms.Compose(
+    [transforms.ToTensor(),
+     transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
 
+trainset = torchvision.datasets.CIFAR10(root='E:/data', train=True, download=True, transform=transform)
+trainloader = torch.utils.data.DataLoader(trainset, batch_size=4, shuffle=True, num_workers=2)
 
-## CSC 4996/7
-- [The Road Damage Dataset](https://s3-ap-northeast-1.amazonaws.com/mycityreport/RoadDamageDataset.tar.gz)
-
-Download the dataset and unzip it to `/path/to/data`.
-
-### To train a model
-```
-python train.py [--data_dir /path/to/data] [--model_dir /path/to/save/models] [--batch_size 8]
+testset = torchvision.datasets.CIFAR10(root='E:/data', train=False, download=True, transform=transform)
+testloader = torch.utils.data.DataLoader(testset, batch_size=4, shuffle=False, num_workers=2)
 ```
 
-After each epoch of training, the model is evaluated against a withheld validation set. `Validation Accuracy: xx` is output after validation; `xx` is the F-Measure on the validation set. The model that performs best on the validation set will be saved to `/path/to/save/models` 
+## Step 4. Train with deep.lib
 
-### To evaluate a model
-```
-python evaluate.py /path/to/model.ckpt.tar [--data_dir /path/to/data] [--batch_size 8]
-```
+```python
+import deeplib
+import deeplib.session
+import deeplib.schedule
+import deeplib.callbacks
+import deeplib.validation
 
-This will evaluate the model's performance against the validation set used during training.
+sess = deeplib.session.Session(net, criterion, optimizer)
+
+callbacks = [
+    deeplib.callbacks.TrainingLossLogger(metric_name="Loss/Train"),
+    deeplib.callbacks.TrainingAccuracyLogger(deeplib.validation.OneHotAccuracy()),
+    deeplib.validation.Validator(testloader, deeplib.validation.OneHotAccuracy()),
+    deeplib.callbacks.Checkpoint("E:/checkpoint.ckpt.tar"),
+    deeplib.callbacks.SaveBest("E:/best.ckpt.tar", "Loss/Train", higher_is_better=False)
+]
+
+schedule = deeplib.schedule.TrainingSchedule(trainloader, 10, callbacks)
+
+sess.train(schedule)
+```

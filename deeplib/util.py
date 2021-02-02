@@ -73,7 +73,3 @@ class LossMeter(object):
         self.count += n
         self.batches += 1
         self.raw_avg = self.sum / self.count
-
-        # When training on a large dataset, this average weights later batches higher than earlier batches
-        self.interpolated_avg = self.interpolated_avg * .98 + loss * (1-.98)
-        self.debias = self.interpolated_avg / (1 - .98**self.batches)

@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.autograd import Variable
 
+import deeplib.schedule
 import deeplib.util as util
 from deeplib.util import *
 import deeplib.callbacks
@@ -12,51 +13,46 @@ import time
 import pickle
 from threading import Thread
 
-apex_installed = True
-
-try:
-    from apex.parallel import DistributedDataParallel as DDP
-    from apex.fp16_utils import *
-    from apex import amp, optimizers
-    from apex.multi_tensor_apply import multi_tensor_applier
-except ImportError:
-    apex_installed = False
-
 class Session():
-    def __init__(self, model, criterion, optim_fn, lrs=1e-3, **kwargs):
+    """A training session is used to train a pytorch model with support for checkpointing and 
+    recording training statistics. Can be overriden for custom training behavior.
+    """
+    def __init__(self, model, criterion, optimizer):
+        """
+        Args:
+            model (torch.nn.Module): The PyTorch model to train. 
+            criterion (callable): A callable function that returns the loss. Should take parameters (output, label) where output is the model's output and label is the label return by the torch.utils.data.Dataset
+            optimizer (torch.optim.Optimizer): A PyTorch optimizer. The optimizer should already be initialzied with the model's parameters.
+        """
         self.model = util.to_gpu(model)
         self.criterion = criterion    
-        self.optim_fn = optim_fn
-        param_arr = [{'params':layer.parameters(), 'lr':0} for layer in self.model.children()]
-        self.optimizer = self.optim_fn(param_arr, **kwargs) # Initialize with learning rate of 0
-        self.set_lr(lrs) # Update learning rate from passed lrs
+        self.optimizer = optimizer
         self.running = False
-        self.mixed_precision = False
         self.schedule = None
         self.meta = {}
 
-    def _save_meta(self, name):
-        os.makedirs(os.path.dirname(name), exist_ok=True)
+    def _save_meta(self, path):
+        os.makedirs(os.path.dirname(path), exist_ok=True)
 
-        file = os.path.splitext(name)[0] + ".meta.md"
+        file = os.path.splitext(path)[0] + ".meta.md"
 
         with open(file, mode="w") as f:
             for key, val in self.meta.items():
                 f.write(f"## {key} \n")
                 f.write(f"{val} \n\n")
 
-    def _save(self, name):
-        os.makedirs(os.path.dirname(name), exist_ok=True)
+    def _save(self, path):
+        os.makedirs(os.path.dirname(path), exist_ok=True)
         
         state = {
             'model': self.model.state_dict()
         }
 
-        torch.save(state, name)
+        torch.save(state, path)
 
-        self._save_meta(name)
+        self._save_meta(path)
 
-    def _checkpoint(self, name):
+    def _checkpoint(self, path):
         state = {
             'model': self.model.state_dict(),
             'optimizer' : self.optimizer.state_dict(),
@@ -64,13 +60,9 @@ class Session():
             'schedule': self.schedule.state_dict() if self.schedule != None else None
         }
 
-        torch.save(state, name)
+        torch.save(state, path)
 
-        self._save_meta(name)
-
-    def _save_model(self, name):
-        state = self.model.state_dict()
-        torch.save(state, name)
+        self._save_meta(path)
 
     def get_meta(self, key: str):
         return self.meta[key] if key in self.meta else None
@@ -90,23 +82,35 @@ class Session():
 
         self.meta[key] += desc
 
-    def save(self, name):
-        a = Thread(target=Session._save, args=(self, name))
+    def save(self, path):
+        """Save the session's model. This method will additionally save a markdown file to `${path.basename}.meta.md`
+        containing statistics gathered during training.
+
+        Args:
+            path (str): File path where the model is saved. Path must exist.
+        """
+        a = Thread(target=Session._save, args=(self, path))
         a.start()
         a.join()
 
-    def save_model(self, name):
-        a = Thread(target=Session._save_model, args=(self, name))
+    def checkpoint(self, path):
+        """Save a training checkpoint. The checkpoint will contain the state of the model, optimizer, and training schedule. 
+        This method will additionally save a markdown file to `${path.basename}.meta.md` containing statistics gathered during training.
+
+        Args:
+            path (str): File path where the checkpoint is saved. Path must exist.
+        """
+        a = Thread(target=Session._checkpoint, args=(self, path))
         a.start()
         a.join()
 
-    def checkpoint(self, name):
-        a = Thread(target=Session._checkpoint, args=(self, name))
-        a.start()
-        a.join()
+    def load(self, path):
+        """Load a checkpoint file created from calling either the `Session.save` or `Session.checkpoint` methods
 
-    def load(self, name, map_location=None):
-        checkpoint = torch.load(name, map_location=map_location)
+        Args:
+            path (str): File path to load
+        """
+        checkpoint = torch.load(path)
         
         if 'model' in checkpoint: self.model.load_state_dict(checkpoint['model'])
         if 'optimizer' in checkpoint: self.optimizer.load_state_dict(checkpoint['optimizer'])
@@ -117,28 +121,6 @@ class Session():
         model_dict = torch.load(name, map_location=None)
         self.model.load_state_dict(model_dict)
 
-    def freeze_to(self, layer_index):
-        layers = list(self.model.children())
-        for l in layers: 
-            for param in l.parameters():
-                param.requires_grad = False
-
-        for l in layers[layer_index:]:
-            for param in l.parameters():
-                param.requires_grad = True
-                
-    def freeze(self):
-        self.freeze_to(-1)
-
-    def unfreeze(self):
-        self.freeze_to(0)
-
-    def freeze_bn(self):
-        '''Freeze BatchNorm layers.'''
-        for layer in self.model.modules():
-            if isinstance(layer, nn.BatchNorm2d):
-                layer.eval()
-
     def set_lr(self, lrs):
         lrs = util.listify(lrs, self.optimizer.param_groups)
         if len(lrs) != len(self.optimizer.param_groups):
@@ -147,27 +129,44 @@ class Session():
         for param_group, lr in zip(self.optimizer.param_groups, lrs):
             param_group['lr'] = lr
 
-    def set_mom(self, mom):
-        if 'betas' in self.optimizer.param_groups[0]:
-            for pg in self.optimizer.param_groups: pg['betas'] = (mom, pg['betas'][1])
-        else:
-            for pg in self.optimizer.param_groups: pg['momentum'] = mom
-
     def to_device(self, tensor):
         if isinstance(tensor, dict):
-            return {key: self.to_device(value) for key, value in tensor.items()}  
+            return {key: self.to_device(value) for key, value in tensor.items()}
+        elif isinstance(tensor, tuple):
+            return tuple(self.to_device(x) for x in tensor)
+        elif isinstance(tensor, list):
+            return [self.to_device(x) for x in tensor]
         elif isinstance(tensor, torch.Tensor):
             return Variable(util.to_gpu(tensor))
         else: 
             return tensor
 
     def forward(self, input):
+        """A forward pass through the model
+
+        Args:
+            input (torch.tensor): The model's input, must be on the same device as the model.
+
+        Returns:
+            torch.tensor: The model's output. Must be on the same device as the input.
+        """
         if isinstance(input, dict):
             return self.model(**input)
         else:
             return self.model(input)
 
-    def step(self, input, label):        
+    def step(self, input: torch.tensor, label: torch.tensor):
+        """A single training step. Can be overridden to define custom behavior. This method will receive the output of a single iteration of the dataloader 
+        from the deeplib.schedule.TrainingSchedule.
+
+        Args:
+            input (torch.tensor): The model's input
+            label (torch.tensor): The label corresponding to the input.
+
+        Returns:
+            output (torch.tensor): The model's output given the input. Must be on the same device as the input.
+            loss (scalar): The loss computed using `this.criterion`.
+        """
         output = self.forward(input)             
         loss = self.criterion(output, label)
         return output, loss                         
@@ -183,37 +182,34 @@ class Session():
             
             self.schedule.on_epoch_begin(self)
             
-            for input, label, *_ in self.schedule.data():
+            for item in self.schedule.data():
                 if not self.running: break
                 
-                self.schedule.on_batch_begin(self, input, label)
+                self.schedule.on_batch_begin(self, *item)
 
-                input, label = self.to_device(input), self.to_device(label)
-                output, loss = self.step(input, label) 
+                item = self.to_device(item)
+                output, loss = self.step(*item) 
 
                 self.model.zero_grad()     
 
-                if self.mixed_precision:
-                    with amp.scale_loss(loss, self.optimizer) as scaled_loss: 
-                        scaled_loss.backward()
-                else: loss.backward()  
+                loss.backward()  
 
-                self.schedule.on_before_optim(self, loss, input, output, label)
+                self.schedule.on_before_optim(self, loss, output, *item)
                 self.optimizer.step()
-                self.schedule.on_batch_end(self, loss.data, input, output, label)
+                self.schedule.on_batch_end(self, loss.data, output, *item)
             
             self.schedule.on_epoch_end(self)      
 
         self.schedule.on_train_end(self)   
 
-    def train(self, schedule):      
+    def train(self, schedule: deeplib.schedule.TrainingSchedule):   
+        """Train the session's model using a training schedule.
+
+        Args:
+            schedule (deeplib.schedule.TrainingSchedule): The training schedule used to train the session's model.
+        """
         with TrainModel(self.model):
             self.run(schedule)
 
     def stop(self):
         self.running = False
-
-    def to_fp16(self):
-        if not apex_installed: raise ImportError("Please install apex from https://www.github.com/nvidia/apex to use MixedPrecision training.")
-        self.mixed_precision = True
-        self.model, self.optimizer = amp.initialize(self.model, self.optimizer, opt_level='O1')
