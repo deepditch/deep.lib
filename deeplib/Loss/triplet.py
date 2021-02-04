@@ -11,7 +11,7 @@ from torch.autograd import Variable
 import deeplib.util as util
 
 
-def batch_hard_triplet_loss(embeddings, labels, margin):
+def batch_hard_triplet_loss(embeddings, labels, margin, pairwise_distance_fn=pairwise_distances):
     """Build the triplet loss over a batch of embeddings.
     For each anchor, we get the hardest positive and hardest negative to form a triplet.
     Args:
@@ -24,7 +24,7 @@ def batch_hard_triplet_loss(embeddings, labels, margin):
         triplet_loss: scalar tensor containing the triplet loss
     """
     # Get the pairwise distance matrix
-    pairwise_dist = pairwise_distances(embeddings)
+    pairwise_dist = pairwise_distance_fn(embeddings)
 
     # For each anchor, get the hardest positive
     # First, we need to get a mask for every valid positive (they should have same label)
@@ -62,7 +62,7 @@ class BatchHardTripletLoss(nn.Module):
     def forward(self, embeddings, labels):
         return batch_hard_triplet_loss(embeddings, labels, self.margin)
 
-def batch_all_triplet_loss(embeddings, labels, margin): 
+def batch_all_triplet_loss(embeddings, labels, margin, pairwise_distance_fn=pairwise_distances): 
     """Build the triplet loss over a batch of embeddings.
     We generate all the valid triplets and average the loss over the positive ones.
     Args:
@@ -75,7 +75,7 @@ def batch_all_triplet_loss(embeddings, labels, margin):
         triplet_loss: scalar tensor containing the triplet loss
     """
     # Get the pairwise distance matrix
-    pairwise_dist = pairwise_distances(embeddings)
+    pairwise_dist = pairwise_distance_fn(embeddings)
 
     anchor_positive_dist = pairwise_dist.unsqueeze(2)
     anchor_negative_dist = pairwise_dist.unsqueeze(1)
