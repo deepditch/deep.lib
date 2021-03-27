@@ -55,7 +55,6 @@ class Session():
         state = {
             'model': self.model.state_dict(),
             'optimizer' : self.optimizer.state_dict(),
-            'amp': amp.state_dict() if self.mixed_precision else None,
             'schedule': self.schedule.state_dict() if self.schedule != None else None
         }
 

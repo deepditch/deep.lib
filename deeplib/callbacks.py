@@ -20,7 +20,7 @@ class TrainCallback:
 	Callback methods are called by the deeplib.schedule.TrainingSchedule class during training. 
 	Each callback has access to a shared callback dictionary (`cb_dict`). Callbacks can coordinate 
 	by reading and writing to the callback dictionary. The internal state of the callback is saved 
-	when `deeplib.session.Session.checkpoint` is called."""
+	when `deeplib.session.Session.checkpoint` is called. Override `state_dict` and `load_state_dict` for custom saving behavior."""
 	def on_train_begin(self, session: 'deeplib.session.Session', schedule: 'deeplib.schedule.TrainingSchedule', cb_dict: dict): pass
 	def on_epoch_begin(self, session: 'deeplib.session.Session', schedule: 'deeplib.schedule.TrainingSchedule', cb_dict: dict): pass
 	def on_batch_begin(self, session: 'deeplib.session.Session', schedule: 'deeplib.schedule.TrainingSchedule', cb_dict: dict, *args, **kwargs): pass
@@ -207,7 +207,6 @@ class GradientClipper(StatelessTrainCallback):
 		self.max_grad_norm = max_grad_norm
 
 	def on_before_optim(self, session, *args, **kwargs):
-		if session.mixed_precision: raise Exception("Gradient clipping is not supported in mixed precision mode")
 		torch.nn.utils.clip_grad_norm_(session.model.parameters(), self.max_grad_norm)
 
 
